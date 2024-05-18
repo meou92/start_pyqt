@@ -120,14 +120,14 @@ def clock():
     if time_dict := list(filter(timedict, ans)):
         todo = time_dict[0]
         ti = ans[todo]["prompt"].split("\n")
-        if Music.get_busy:
+        if Music.media.isPlaying():
             if Music.playlist:
                 Music.stop_list()
             else:
                 Music.stop()
         Music.play(Data.get("set")["ClockMusic"])
         MessageBox.information(main_window, "today's homework!!!", f"--{todo}--\n" + "\n".join(ti[:3] if len(ti) > 4 else ti))
-    elif Vplay.get() == -1 and not Music.get_busy:
+    elif Vplay.get() == -1 and not Music.media.isPlaying():
         Vplay.set(0)
 
 
@@ -518,10 +518,9 @@ class TopWin(WID):
 
 
 class MusicPlayer:
-    __slots__ = ["media","audio","song","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration"]
+    __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration"]
 
     def __init__(self, slider=None):
-        self.clear = True
         self.mode: Literal["all_once", "all_infinite", "one_infinite"] = Data.get("set")["PlayMode"]
         self.media = QMediaPlayer()
         self.play_already=0
@@ -532,6 +531,8 @@ class MusicPlayer:
         self.media.setAudioOutput(self.audio)
         self.states: Literal["stop", "play", "pause", "unpause"]
         self.states = "stop"
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(lambda: self.update_slide())
         self.button_dict: dict[Literal["1", "music"], Button] = {}
         if type(slider) == QtWidgets.QSlider:
             self.slider = [slider]
@@ -553,7 +554,7 @@ class MusicPlayer:
         self.show_duration.set(f"00:00/{max//60:02d}:{max%60:02d}")
         for i in self.slider:
             i.setValue(0)
-            i.setRange(0, int(max))
+            i.setRange(0, max)
 
     def slider_change(self,slider:Slider):
         self.media.setPosition(slider.value()*1000)
@@ -581,25 +582,25 @@ class MusicPlayer:
         self.audio.setVolume(Page.ClockVolume / 100)
         self.media.setPlaybackRate(Page.ClockRate)
         self.reset_slide(MP3(song).info.length)
-        Timer.add_func_1000(self.update_slide)
+        self.timer.start(int(1000//Page.ClockRate))
         self.song.set(song.split("\\" if "\\" in song else "/")[-1][:-4])
 
     def play_list_start(self, playlist: str):
         self.change_button("暫停")
         Vplay.set(1)
-        self.clear = False
         self.states = "play"
         self.playlist=playlist
         self.play_num = Data.get("music")[playlist]["Number"]
         self.media.setPlaybackRate(Page.MusicRate)
+        self.audio.setVolume(Page.MusicVolume / 100)
         if self.mode != "one_infinite":
             self.play_num -= 1
         self.play_list()
         Timer.add_func_500(self.play_list)
-        Timer.add_func_1000(self.update_slide)
+        self.timer.start(int(1000//Page.MusicRate))
 
     def play_list(self):
-        if Vplay.get() == 1 and self.clear == False and self.states == "play" and not Music.get_busy:
+        if Vplay.get() == 1 and self.states == "play" and not self.media.isPlaying():
             h = Data.load()
             li = list(h["music"][self.playlist]["list"])
             if self.mode == "all_once" and self.play_num == len(li) - 1:
@@ -612,23 +613,23 @@ class MusicPlayer:
                 listbox.setCurrentRow(self.play_num)
                 song = f"{h['set']['MusicDir']}\\{li[self.play_num]}.mp3"
                 self.song.set(li[self.play_num])
-                url = QtCore.QUrl.fromLocalFile(song)
-                self.media.setSource(url)
-                self.media.play()
-                self.audio.setVolume(Page.MusicVolume / 100)
                 self.reset_slide(MP3(song).info.length)
+                self.media.setSource(QtCore.QUrl.fromLocalFile(song))
+                self.media.setPosition(0)
+                self.media.play()
+                print(self.mode)
             self.play_already+=int(self.play_already < 2)
 
     def pause_list(self):
         Timer.del_func_500(self.play_list)
-        Timer.del_func_1000(self.update_slide)
+        self.timer.stop()
         self.change_button()
         self.states = "pause"
         self.media.pause()
 
     def unpause_list(self):
         Timer.add_func_500(self.play_list)
-        Timer.add_func_1000(self.update_slide)
+        self.timer.start(int(1000//Page.MusicRate))
         self.change_button("暫停")
         self.states = "play"
         self.media.play()
@@ -636,11 +637,10 @@ class MusicPlayer:
     def stop_list(self):
         if self.states != "stop":
             Vplay.set(0)
-            self.clear = True
             self.states = "stop"
             self.play_already=2
             Timer.del_func_500(self.play_list)
-            Timer.del_func_1000(self.update_slide)
+            self.timer.stop()
             self.reset_slide()
             self.change_button()
             self.song.set("")
@@ -649,12 +649,8 @@ class MusicPlayer:
 
     def stop(self):
         Vplay.set(0)
-        Timer.del_func_1000(self.update_slide)
+        self.timer.stop()
         self.media.stop()
-
-    @property
-    def get_busy(self):
-        return self.media.isPlaying()
 
     @property
     def music_list(self):
@@ -889,7 +885,6 @@ class Page_Organize:
 
         win = self.add_win("mini", color=color, x=185, y=135)
         self.mode = 1
-        win.setWindowIcon(QIcon(f"{path}\\music.ico"))
         win.setWindowOpacity(0.8)
         win.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         win.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
@@ -1313,15 +1308,19 @@ class Page_Organize:
             self.MusicRate = rate
             m_rate_label.setText(f"Music Rate: {rate}")
             if Vplay.get() == 1:
+                Music.timer.stop()
+                Music.timer.start(int(1000//rate))
+                Music.update_slide()
                 Music.media.setPlaybackRate(rate)
 
         def set_clock_rate():
             rate = c_rate_scale.value()/100
-            h = Data.load()
-            h["set"]["ClockRate"] = rate
-            Data.write(h)
+            self.ClockRate = rate
             c_rate_label.setText(f"Clock Rate: {rate}")
             if Vplay.get() == -1:
+                Music.timer.stop()
+                Music.timer.start(int(1000//rate))
+                Music.update_slide()
                 Music.media.setPlaybackRate(rate)
 
         def set_ClockMusic():
@@ -1750,22 +1749,26 @@ def nexted():
 
 def click_print(self:QtWidgets.QWidget,a0:QtCore.QPoint):
 
-    def finish():
-        label.deleteLater()
-        anima.deleteLater()
-        sip.delete(label)
-        sip.delete(anima)
-
-
-    label = Label(self,[a0.x(),a0.y(),0,0],image=QPixmap(f"{path}clicked.png"),style="background:transparent;")
+    def animation():
+        nonlocal num
+        if num < 30 and not sip.isdeleted(label):
+            num+=6
+            n=int(num/2)
+            label.setGeometry(a0.x()-n,a0.y()-n,num,num)
+            label.setPixmap(p.scaled(num,num))
+        else:
+            anima.stop()
+            sip.delete(label)
+            sip.delete(anima)
+            sip.delete(p)
+    
+    num = 0
+    p=QPixmap(f"{path}clicked.png")
+    label = Label(self,[a0.x(),a0.y(),0,0],image=p.scaled(0,0),style="background:transparent;")
     label.show()
-    anima = QtCore.QPropertyAnimation(label, b'geometry')
-    anima.finished.connect(finish)
-    anima.setStartValue(QtCore.QRect(a0.x(),a0.y(),0,0))
-    anima.setEndValue(QtCore.QRect(a0.x()-15,a0.y()-15,30,30))
-    anima.setDuration(300)
-    anima.setEasingCurve(QtCore.QEasingCurve.Type.InCurve)
-    anima.start()
+    anima = QtCore.QTimer()
+    anima.timeout.connect(animation)
+    anima.start(60)
 
 
 app = QtWidgets.QApplication(sys.argv)
