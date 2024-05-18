@@ -4,9 +4,9 @@
 # 按下可改時間
 
 
-from PyQt6 import QtWidgets, QtGui, sip
+from PyQt6 import QtWidgets,QtCore, QtGui, sip
 from PyQt6.QtGui import QPixmap, QIcon
-from PyQt6.QtCore import Qt, QTimer, QSize, QUrl
+from PyQt6.QtCore import Qt
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from mutagen.mp3 import MP3
 import sys, psutil, json, os, random,webbrowser
@@ -26,10 +26,10 @@ class Timers:
     __slots__ = ["timer_1000", "timer_500", "func_1000", "func_500"]
 
     def __init__(self):
-        self.timer_1000 = QTimer()
+        self.timer_1000 = QtCore.QTimer()
         self.timer_1000.timeout.connect(lambda: self.connect_1000())
         self.timer_1000.start(1000)
-        self.timer_500 = QTimer()
+        self.timer_500 = QtCore.QTimer()
         self.timer_500.timeout.connect(lambda: self.connect_500())
         self.timer_500.start(500)
         self.func_500 = []
@@ -166,13 +166,17 @@ class Button(QtWidgets.QPushButton):
         if "text" in arg:
             self.setText(arg["text"])
         if "image" in arg:
-            self.setIconSize(QSize(*geometry[2:]))
+            self.setIconSize(QtCore.QSize(*geometry[2:]))
             self.setIcon(arg["image"])
         if "style" in arg:
             self.setStyleSheet(arg["style"])
-        if command != None:
-            self.clicked.connect(command)
+        self.command=command
         self.setGeometry(*geometry)
+    def mousePressEvent(self,a0:QtGui.QMouseEvent):
+        click_print(self.parentWidget(),a0.pos()+self.pos())
+        if self.command != None:
+            self.command()
+        a0.accept()
 
 
 class Combobox(QtWidgets.QComboBox):
@@ -428,6 +432,7 @@ class NotitleWidget(WID):
         self.text = text
         self.moveFlag = False
     def mousePressEvent(self, a0):
+        click_print(self,a0.pos())
         if a0.button() == Qt.MouseButton.LeftButton:
             self.moveFlag = True
             self.movePosition = a0.globalPosition().toPoint() - self.pos()
@@ -453,6 +458,7 @@ class TopWin(WID):
         self.text = text
         self.moveFlag = False
     def mousePressEvent(self, a0):
+        click_print(self,a0.pos())
         if a0.button() == Qt.MouseButton.LeftButton:
             self.moveFlag = True
             self.movePosition = a0.globalPosition().toPoint() - self.pos()
@@ -569,7 +575,7 @@ class MusicPlayer:
 
     def play(self, song: str):
         Vplay.set(-1)
-        url = QUrl.fromLocalFile(song)
+        url = QtCore.QUrl.fromLocalFile(song)
         self.media.setSource(url)
         self.media.play()
         self.audio.setVolume(Page.ClockVolume / 100)
@@ -606,7 +612,7 @@ class MusicPlayer:
                 listbox.setCurrentRow(self.play_num)
                 song = f"{h['set']['MusicDir']}\\{li[self.play_num]}.mp3"
                 self.song.set(li[self.play_num])
-                url = QUrl.fromLocalFile(song)
+                url = QtCore.QUrl.fromLocalFile(song)
                 self.media.setSource(url)
                 self.media.play()
                 self.audio.setVolume(Page.MusicVolume / 100)
@@ -731,7 +737,7 @@ class Interaction:
     def start(self):
         self.count = True
         self.ctime = 30
-        self.timer = QTimer()
+        self.timer = QtCore.QTimer()
         self.timer.timeout.connect(lambda: self.counting())
         self.timer.start(1000)
         self.counting()
@@ -776,7 +782,7 @@ class Page_Organize:
             b = Button(master,[geometry[0],geometry[1]+geometry[3],geometry[2],15],lambda:self.win(text,m["exec"],m["icon"],m["geometry"]),text=text,style=f"color:{color2};background:transparent;text-align:left;")
             b.adjustSize()
             b.show()
-            self.setIconSize(QSize(*geometry[2:]))
+            self.setIconSize(QtCore.QSize(*geometry[2:]))
             self.setIcon(image)
             self.setStyleSheet("background:transparent;")
             if type(command)==str and command[:4] == "http":
@@ -1442,6 +1448,7 @@ class TextEdit(QtWidgets.QTextEdit):
 class WST(TextEdit):
     def mousePressEvent(self, e: QtGui.QMouseEvent | None) -> None:
         super().mousePressEvent(e)
+        click_print(self,e.pos())
         self.parentWidget().raise_()
         e.accept()
 
@@ -1454,6 +1461,7 @@ class TEXT(QtWidgets.QTextEdit):
         self.rol = self.verticalScrollBar()
     def mousePressEvent(self, e: QtGui.QMouseEvent | None):
         super().mousePressEvent(e)
+        click_print(self,e.pos())
         self.parentWidget().raise_()
 
     def setting(self, obj):
@@ -1730,6 +1738,7 @@ def nexted():
         r = listbox.currentRow() if Music.states =="stop" and listbox.currentItem() else Music.play_num
         if Music.play_already == 2:
             Music.media.stop()
+            Music.play_num = r  if Music.mode != "one_infinite" else r+1
             Music.play_list()
         else:
             Music.stop_list()
@@ -1737,6 +1746,26 @@ def nexted():
                 listbox.setCurrentRow(r+1)
             elif listbox.count() > 0:
                 listbox.setCurrentRow(0)
+
+
+def click_print(self:QtWidgets.QWidget,a0:QtCore.QPoint):
+
+    def finish():
+        label.deleteLater()
+        anima.deleteLater()
+        sip.delete(label)
+        sip.delete(anima)
+
+
+    label = Label(self,[a0.x(),a0.y(),0,0],image=QPixmap(f"{path}clicked.png"),style="background:transparent;")
+    label.show()
+    anima = QtCore.QPropertyAnimation(label, b'geometry')
+    anima.finished.connect(finish)
+    anima.setStartValue(QtCore.QRect(a0.x(),a0.y(),0,0))
+    anima.setEndValue(QtCore.QRect(a0.x()-15,a0.y()-15,30,30))
+    anima.setDuration(300)
+    anima.setEasingCurve(QtCore.QEasingCurve.Type.InCurve)
+    anima.start()
 
 
 app = QtWidgets.QApplication(sys.argv)
@@ -1758,13 +1787,14 @@ color2 = f"rgb({','.join(map(str,colora2))})"
 color_bg = colors["bg"]
 m = app.screens()[0].size()
 main_window = QtWidgets.QMainWindow()
-main_window.setFocus(Qt.FocusReason.MouseFocusReason)
+main_window.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
 main_window.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 main_window.setWindowTitle("Start")
 main_window.setWindowFlag(Qt.WindowType.FramelessWindowHint,True)
 main_window.setWindowFlag(Qt.WindowType.WindowStaysOnBottomHint, True)
 main_window.setWindowFlag(Qt.WindowType.MaximizeUsingFullscreenGeometryHint, True)
 main_window.showMaximized()
+main_window.mousePressEvent = lambda a0:click_print(main_window,a0.pos())
 img0 = Image.open(Data.get("set")["Background"])
 qimg0 = ImageQt.toqimage(img0)
 qimg1 = ImageQt.toqimage(img0.filter(ImageFilter.GaussianBlur(20)))
@@ -1790,8 +1820,9 @@ Button(g1,[60, 0, 50, 50],lambda: Page.dic(),image=QIcon(f"{path}icon\\dict.png"
 Button(g1,[110, 0, 50, 50],lambda: Page.learn(),image=QIcon(f"{path}icon\\learn.png"),style="background:transparent;").show()
 Button(g1,[160, 0, 50, 50],lambda: Page.clas(),image=QIcon(f"{path}icon\\class.png"),style="background:transparent;").show()
 Button(g1,[210, 0, 50, 50],lambda: Page.exe(),image=QIcon(f"{path}icon\\exec.png"),style="background:transparent;border-radius:25px;").show()
-Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-").show()
-Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
+s=f"QPushButton {{background:{color};color:#ffffff;border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:#ffffff;background:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.4);}}"
+Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-", style=s).show()
+Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x",style=s).show()
 Todo_Win = NotitleWidget(main_window, "todo", 250, 290)
 Todo_Win.setStyleSheet("background:transparent;")
 calendar = QtWidgets.QCalendarWidget(Todo_Win)
