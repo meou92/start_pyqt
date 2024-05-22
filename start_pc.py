@@ -1734,16 +1734,17 @@ def click_print(self:QtWidgets.QWidget,a0:QtCore.QPoint):
 
     def animation():
         nonlocal num
-        if num < 30 and not sip.isdeleted(label):
-            num+=6
-            n=int(num/2)
-            label.setGeometry(a0.x()-n,a0.y()-n,num,num)
-            label.setPixmap(p.scaled(num,num))
-        else:
-            anima.stop()
-            sip.delete(label)
-            sip.delete(anima)
-            sip.delete(p)
+        if not sip.isdeleted(label):
+            if num < 30:
+                num+=6
+                n=int(num/2)
+                label.setGeometry(a0.x()-n,a0.y()-n,num,num)
+                label.setPixmap(p.scaled(num,num))
+            else:
+                anima.stop()
+                sip.delete(label)
+                sip.delete(anima)
+                sip.delete(p)
     
     num = 0
     p=QPixmap(f"{path}clicked.png")
