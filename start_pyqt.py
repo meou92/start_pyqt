@@ -49,6 +49,7 @@ class Timers:
         if func in self.func_1000:
             del self.func_1000[self.func_1000.index(func)]
 
+
     def connect_500(self):
         list(map(lambda x: x(), self.func_500))
 
@@ -170,6 +171,8 @@ class Button(QtWidgets.QPushButton):
             self.setIcon(arg["image"])
         if "style" in arg:
             self.setStyleSheet(arg["style"])
+        else:
+            self.setStyleSheet(button_style)
         self.command=command
         self.setGeometry(*geometry)
     def mousePressEvent(self,a0:QtGui.QMouseEvent):
@@ -328,13 +331,14 @@ class Choose(QtWidgets.QCheckBox):
 
         if self.No_Change:
             self.No_Change = False
-            ma = WID(None,f"background:{color};",0,0,300,215)
-            ma.setWindowFlag(Qt.WindowType.SubWindow,True)
+            color_bg_0 = f"rgba({colora[0]},{colora[1]},{colora[2]},0.8)"
+            ma = WID(None,f"background:{color_bg_0};",0,0,300,250)
+            ma.setWindowFlags(Qt.WindowType.SubWindow)
             ma.setWindowTitle(Type if Type == "add" else f"{Type}:{self.text()}")
             ma.destroyed.connect(des)
-            e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:{color};color:{color2};",[0, 0, 300, 30],self.text(),)
+            e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
             t1 = QtWidgets.QDateTimeEdit(ma)
-            t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};")
+            t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:transparent;")
             t1.setCalendarPopup(True)
             t1c = QtWidgets.QCalendarWidget()
             t1c.setVerticalHeaderFormat(t1c.VerticalHeaderFormat.NoVerticalHeader)
@@ -381,12 +385,12 @@ class Choose(QtWidgets.QCheckBox):
             e3.insertPlainText(Else["prompt"])
             e4.setCurrentIndex(Else["type"])
             if Type == "change":
-                b = [Button(ma,[0, 180, 40, 30],button_choose,text="ok",),Button(ma, [40, 180, 70, 30], delete, text="delete"),Button(ma, [110, 180, 80, 30], cancel, text="cancel"),]
+                Button(ma,[0, 180, 40, 30],button_choose,text="ok",).show()
+                Button(ma, [40, 180, 70, 30], delete, text="delete").show()
+                Button(ma, [110, 180, 80, 30], cancel, text="cancel").show()
             else:
-                b = [Button(ma,[0, 180, 40, 30],button_choose,text="add",),Button(ma, [40, 180, 70, 30], cancel, text="cancel"),]
-            for fa in b:
-                fa.setStyleSheet(f"QPushButton {{font-family:Arial;font-size:15pt;font-weight:bold;color:{color2};background:{color};}} QPushButton:activate {{color:{color2};background:{color}}}")
-                fa.show()
+                Button(ma,[0, 180, 40, 30],button_choose,text="add",).show()
+                Button(ma, [40, 180, 70, 30], cancel, text="cancel").show()
             b0 = Button(ma,[200,180,50, 30],lambda: self.clock_topwin(),text="1 00:00:00",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",)
             self.left_time.add(b0)
             b0.adjustSize()
@@ -929,7 +933,7 @@ class Page_Organize:
         Button(win,[40, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
         Button(win,[65, 115, 15, 15],nexted,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
         mode = Button(win,[130, 110, 25, 25],set_play_mode_mini,image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
-        Button(win, [160, 110, 25, 25], des, image=QIcon(f"{path}icon\\離開.png"),style="background:transparent;").show()
+        Button(win, [170, 0, 15, 15], des, image="x",style="background:transparent;").show()
         self.minidict = {"time":time,"date":date}
         for i in [time,date,comb,play,mode]:
             i.show()
@@ -938,9 +942,10 @@ class Page_Organize:
     def todo(self):
         def clicked():
             def lambda_click():
-                chose = Choose(win,"",{"date": (today+timedelta(self.tododict.index(list(filter(lambda x:x[0].underMouse(),self.tododict))[0]))).strftime("%Y-%m-%d"),"time": "00:00:00","prompt": "","type": 1,},)
-                chose.setVisible(False)
-                chose.screem_choose("add")
+                if len(m:=list(filter(lambda x:x[0].underMouse(),self.tododict)))>0:
+                    chose = Choose(win,"",{"date": (today+timedelta(self.tododict.index(m[0]))).strftime("%Y-%m-%d"),"time": "00:00:00","prompt": "","type": 1,},)
+                    chose.setVisible(False)
+                    chose.screem_choose("add")
 
             today = cal.selectedDate().toPyDate()
             today = today - timedelta(today.weekday())
@@ -985,7 +990,6 @@ class Page_Organize:
 
         win = self.add_win("todo", main_window, f"rgba({colora[0]},{colora[1]},{colora[2]},0.15)", 680, 510)
         ge = Data.get("Todo")
-        ch_tag = {"tag1": "color:#fc8289;font-family:Arial;font-size:14pt;background:transparent;","tag2": "color:#08bcf1;font-family:Arial;font-size:14pt;background:transparent;",}
         self.tododict:list[list[WID]] = []
         style = f"""
             QScrollArea {{background: rgba({colora[0]},{colora[1]},{colora[2]},0.56);border-radius:20px;border: 2px dotted rgba({colora2[0]}, {colora2[1]}, {colora2[2]}, 0.89);}}
@@ -1055,7 +1059,7 @@ class Page_Organize:
         Button(win,[540,175,25,25],last,image=QIcon(f"{path}home\\last.png"),style=f"background:rgba({colora[0]},{colora[1]},{colora[2]},0.56);",).show()
         Button(win,[565,175,25,25],next,image=QIcon(f"{path}home\\next.png"),style=f"background:rgba({colora[0]},{colora[1]},{colora[2]},0.56);",).show()
         clicked()
-        Button(win,[655, 0, 25, 20],lambda: self.destroy("todo"),text="x",style=f"background:rgba({colora[0]},{colora[1]},{colora[2]},0.56);color:{color2};font-family:Arial;font-size:8pt;",).show()
+        Button(win,[655, 0, 25, 20],lambda: self.destroy("todo"),text="x").show()
         win.show()
 
     def dic(self):
@@ -1120,7 +1124,7 @@ class Page_Organize:
         write1.put.add(l0)
         for fa in [write1, write2, entry, but2, but3, but4, l0]:
             fa.show()
-        Button(win,[585, 0, 15, 15],lambda: self.destroy("dic"),text="x",style="background:rgba(254, 227, 172, 0.8);color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
+        Button(win,[585, 0, 15, 15],lambda: self.destroy("dic"),text="x").show()
         win.show()
         write1.clean()
 
@@ -1269,7 +1273,7 @@ class Page_Organize:
         Button(button_frame, [100, 30, 50, 30], save, text="save", style=style).show()
         Button(button_frame, [150, 30, 40, 30], ADD, text="Add", style=style).show()
         Button(button_frame,[190, 30, 70, 30],DELETE,text="Delete",style=style,).show()
-        Button(win,[580, 0, 20, 20],lambda: self.destroy("learn"),text="x",style="background:rgba(254, 227, 172, 0.8);color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
+        Button(win,[580, 0, 20, 20],lambda: self.destroy("learn"),text="x").show()
         win.show()
 
     def clas(self):
@@ -1283,7 +1287,7 @@ class Page_Organize:
             Label(win,[fa * 90, 0, 90, 30],text=f"  {i3}  ",style=f"background-color:{c};color:#fc8289;font-family:Arial;font-size:16pt;font-weight:bold;",).show()
             for fi in range(length):
                 Label(win,[fa * 90, (fi + 1) * 30, 90, 30],text=i1[i3][fi],style=f"background-color:{c};color:{color2};font-family:Arial;font-size:16pt;font-weight:bold;",).show()
-        Button(win,[width * 90 - 20, 0, 20, 20],lambda: self.destroy("clas"),text="x",style="background:rgba(254, 227, 172, 0.8);color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
+        Button(win,[width * 90 - 20, 0, 20, 20],lambda: self.destroy("clas"),text="x").show()
         win.show()
 
     def set(self):
@@ -1412,7 +1416,7 @@ class Page_Organize:
         t3 = Entry(wid,f"background:rgba(209, 142, 109, 0.4);color:#dd7aff;font-family:Arial;font-size:12pt;",[0,360,300,30],s["Background"])
         for i in [m_label, c_label,m_rate_label,c_rate_label, m_scale, c_scale,m_rate_scale,c_rate_scale, t0, t1, t2, t3]:
             i.show()
-        Button(win,[300, 0, 15, 15],lambda: self.destroy("set"),text="x",style="background:rgba(254, 227, 172, 0.8);color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
+        Button(win,[300, 0, 15, 15],lambda: self.destroy("set"),text="x").show()
         win.show()
 
     def exe(self):
@@ -1420,8 +1424,8 @@ class Page_Organize:
         win = self.add_win("exe", main_window,f"rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.6);", 300, 300)
         for i in l:
             Page_Organize.But(win,l[i]["geometry"],l[i]["exec"],i,QIcon(l[i]["icon"])).show()
-        Button(win,[250,0,30,20],lambda:Page_Organize.But.win("","","",[0,0,0,0]),text="add",style="background:rgba(254, 227, 172, 0.8);color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
-        Button(win,[280, 0, 20, 20],lambda: self.destroy("exe"),text="x",style="background:rgba(254, 227, 172, 0.8);color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
+        Button(win,[250,0,30,20],lambda:Page_Organize.But.win("","","",[0,0,0,0]),text="add").show()
+        Button(win,[280, 0, 20, 20],lambda: self.destroy("exe"),text="x").show()
         win.show()
 
 
@@ -1462,6 +1466,7 @@ class TEXT(QtWidgets.QTextEdit):
         super().mousePressEvent(e)
         click_print(self,e.pos())
         self.parentWidget().raise_()
+        e.accept()
 
     def setting(self, obj):
         def on_roll():
@@ -1757,19 +1762,23 @@ def click_print(self:QtWidgets.QWidget,a0:QtCore.QPoint):
                 n=int(num/2)
                 label.setGeometry(a0.x()-n,a0.y()-n,num,num)
                 label.setPixmap(p.scaled(num,num))
+            elif num ==30:
+                num+=6
+                opacity.setOpacity(0.5)
             else:
                 anima.stop()
                 sip.delete(label)
                 sip.delete(anima)
-                sip.delete(p)
     
     num = 0
-    p=QPixmap(f"{path}clicked.png")
     label = Label(self,[a0.x(),a0.y(),0,0],image=p.scaled(0,0),style="background:transparent;")
+    opacity = QtWidgets.QGraphicsOpacityEffect()
+    opacity.setOpacity(1.0)
+    label.setGraphicsEffect(opacity)
     label.show()
     anima = QtCore.QTimer()
     anima.timeout.connect(animation)
-    anima.start(60)
+    anima.start(50)
 
 
 app = QtWidgets.QApplication(sys.argv)
@@ -1782,6 +1791,7 @@ Vdate = Valiable("")
 Vtime = Valiable("")
 Vplay = Valiable()
 Vstate = Valiable(bool(Data.get("set")["dark"]))
+p = QPixmap(f"{path}clicked.png")
 widget = Data.get("style")[int(Vstate.get())]
 colors = Data.get("color")[int(Vstate.get())]
 colora = list(colors["none"])
@@ -1824,9 +1834,9 @@ Button(g1,[60, 0, 50, 50],lambda: Page.dic(),image=QIcon(f"{path}icon\\dict.png"
 Button(g1,[110, 0, 50, 50],lambda: Page.learn(),image=QIcon(f"{path}icon\\learn.png"),style="background:transparent;").show()
 Button(g1,[160, 0, 50, 50],lambda: Page.clas(),image=QIcon(f"{path}icon\\class.png"),style="background:transparent;").show()
 Button(g1,[210, 0, 50, 50],lambda: Page.exe(),image=QIcon(f"{path}icon\\exec.png"),style="background:transparent;border-radius:25px;").show()
-s=f"QPushButton {{background:{color};color:#ffffff;border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:#ffffff;background:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.4);}}"
-Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-", style=s).show()
-Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x",style=s).show()
+button_style=f"QPushButton {{background:{color};color:#ffffff;border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:#ffffff;background:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.4);}}"
+Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-").show()
+Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
 Todo_Win = NotitleWidget(main_window, "todo", 250, 290)
 Todo_Win.setStyleSheet("background:transparent;")
 calendar = QtWidgets.QCalendarWidget(Todo_Win)
