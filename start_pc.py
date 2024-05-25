@@ -170,9 +170,10 @@ class Button(QtWidgets.QPushButton):
         self.command=command
         self.setGeometry(*geometry)
     def mousePressEvent(self,a0:QtGui.QMouseEvent):
-        click_print(self.parentWidget(),a0.pos()+self.pos())
         if self.command != None:
             self.command()
+        if not sip.isdeleted(self):
+            click_print(self.parentWidget(),a0.pos()+self.pos())
         a0.accept()
 
 
@@ -517,6 +518,7 @@ class TopWin(WID):
 
 class MusicPlayer:
     __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration"]
+    State = Literal["stop", "play", "pause"]
 
     def __init__(self, slider=None):
         self.mode: Literal["all_once", "all_infinite", "one_infinite"] = Data.get("set")["PlayMode"]
@@ -527,8 +529,7 @@ class MusicPlayer:
         self.show_duration = Valiable("")
         self.playlist = ""
         self.media.setAudioOutput(self.audio)
-        self.states: Literal["stop", "play", "pause", "unpause"]
-        self.states = "stop"
+        self.states: MusicPlayer.State = "stop"
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(lambda: self.update_slide())
         self.button_dict: dict[Literal["1", "music"], Button] = {}
@@ -563,7 +564,7 @@ class MusicPlayer:
     def change_button(self, text="播放"):
         icon = QIcon(f"{path}icon\\{text}.png")
         button_play.setIcon(icon)
-        if Page.mode == 1:
+        if "mini" in Page.page:
             self.button_dict["1"].setIcon(icon)
         elif "1" in self.button_dict:
             del self.button_dict["1"]
@@ -583,12 +584,12 @@ class MusicPlayer:
         self.timer.start(int(1000//Page.ClockRate))
         self.song.set(song.split("\\" if "\\" in song else "/")[-1][:-4])
 
-    def play_list_start(self, playlist: str):
+    def play_list_start(self):
         self.change_button("暫停")
         Vplay.set(1)
         self.states = "play"
-        self.playlist=playlist
-        self.play_num = Data.get("music")[playlist]["Number"]
+        self.playlist=combo.currentText()
+        self.play_num = Data.get("music")[self.playlist]["Number"]
         self.media.setPlaybackRate(Page.MusicRate)
         self.audio.setVolume(Page.MusicVolume / 100)
         if self.mode != "one_infinite":
@@ -615,7 +616,6 @@ class MusicPlayer:
                 self.media.setSource(QtCore.QUrl.fromLocalFile(song))
                 self.media.setPosition(0)
                 self.media.play()
-                print(self.mode)
             self.play_already+=int(self.play_already < 2)
 
     def pause_list(self):
@@ -764,7 +764,7 @@ class Interaction:
 
 
 class Page_Organize:
-    __slots__ = ["mode", "page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","minidict","tododict","cal"]
+    __slots__ = ["page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","minidict","tododict","cal"]
 
     class But(QtWidgets.QPushButton):
         def __init__(self, master, geometry=[], command=None,text="",image: QtGui.QIcon = None):
@@ -835,7 +835,6 @@ class Page_Organize:
             window.show()
 
     def __init__(self):
-        self.mode = 0
         self.test_num = -1
         self.test_number = 0
         self.page: dict[page_type, TopWin] = {}
@@ -863,72 +862,60 @@ class Page_Organize:
 
     def mini(self):
         def des():
-            self.mode = 0
-            Vtime.delete(self.minidict["time"])
-            Vdate.delete(self.minidict["date"])
+            Vtime.delete(time)
+            Vdate.delete(date)
             Music.slider.pop()
             Music.show_duration.widget.pop()
             self.destroy("mini")
-
-        def music_play():
-            if Music.states == "stop":
-                Music.play_list_start(comb.currentText())
-            elif Music.states == "play":
-                Music.pause_list()
-            else:
-                Music.unpause_list()
+        
+        def play_command():
+            com(comb)
+            music_play()
+        
         def set_play_mode_mini():
             Music.mode = {"all_once":"all_infinite","all_infinite":"one_infinite","one_infinite":"all_once"}[Music.mode]
             mode.setIcon(QIcon(f"{path}home\\{Music.mode}.png"))
 
-        win = self.add_win("mini", color=color, x=185, y=135)
-        self.mode = 1
+        win = self.add_win("mini", color=color, x=155, y=135)
         win.setWindowOpacity(0.8)
-        win.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
-        win.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        win.setWindowFlags(Qt.WindowType.FramelessWindowHint|Qt.WindowType.WindowStaysOnTopHint)
         time = Label(win,[0, 0, 155, 30],text=Vtime.get(),style=f"background-color:{color};color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:20pt;font-weight:bold;",)
         time.setAlignment(align.AlignCenter)
         Vtime.add(time)
         date = Label(win,[0, 30, 155, 30],text=Vdate.get(),style=f"background-color:{color};color:#FFAEC9;font-family:Arial;font-size:10pt;font-weight:bold;",)
         date.setAlignment(align.AlignCenter)
         Vdate.add(date)
-        comb = Combo(win, "Arial", 12, 8, True, geometry=[0, 60, 185, 30])
-        slider_mini = Slider(win, 0, 90, 185, 10)
-        slider_mini.setStyleSheet(
-            """
-            QSlider {
-                border-radius: 10px;
-            }
+        comb = Combo(win, "Arial", 12, 8, True, geometry=[0, 60, 155, 30])
+        comb.activated.connect(lambda:com(comb))
+        slider_mini = Slider(win, 0, 90, 155, 10)
+        slider_mini.setStyleSheet("""
             QSlider::groove:horizontal {
-                height: 5px;
-                background: #000;
+                height: 10px;border-radius: 5px;background: rgba(123,79,79,0.74);
             }
-            QSlider::handle:horizontal{
-                background: #f00;
-                width: 10px;
-                height: 10px;
-                margin:-5px 0;
-                border-radius:8px;
+            QSlider::handle:horizontal {
+                background: #d18e6d;width: 10px;height: 10px;margin: 0px 0;border-radius: 5px;
             }
-            QSlider::sub-page:horizontal{
-                background:#f90;
+            QSlider::sub-page:horizontal {
+                border-radius: 5px;background:#ffb688;
             }
-        """
-        )
+            QSlider {
+                background: transparent;border-radius: 5px;
+            }
+        """)
         slider_mini.actionTriggered.connect(lambda:Music.slider_change(slider_mini))
-        Music.add_slider(slider_mini)
         slider_mini.setRange(0,int(slider.maximum()))
-        l = Label(win,[0,100,70,15],text="00:00/00:00",style="color:#ffffff;")
+        Music.add_slider(slider_mini)
+        l = Label(win,[0,100,70,15],text="00:00/00:00",style=f"color:{color_bg};")
         Music.show_duration.add(l)
         l.show()
         Button(win,[0,115, 15, 15],last,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
-        play = Button(win, [15, 110, 25, 25], music_play, image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;")
+        play = Button(win, [15, 110, 25, 25], play_command, image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;")
         Music.set_button("1", play)
         Button(win,[40, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
         Button(win,[65, 115, 15, 15],nexted,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
         mode = Button(win,[130, 110, 25, 25],set_play_mode_mini,image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
-        Button(win, [170, 0, 15, 15], des, image="x",style="background:transparent;").show()
-        self.minidict = {"time":time,"date":date}
+        Button(win, [140, 0, 15, 15], des, text="x",style=f"background:transparent;color:{color_bg};").show()
+        self.minidict = {"time":time,"date":date, "combo":comb}
         for i in [time,date,comb,play,mode]:
             i.show()
         win.show()
@@ -1118,7 +1105,7 @@ class Page_Organize:
         write1.put.add(l0)
         for fa in [write1, write2, entry, but2, but3, but4, l0]:
             fa.show()
-        Button(win,[585, 0, 15, 15],lambda: self.destroy("dic"),text="x").show()
+        Button(win,[580, 0, 20, 15],lambda: self.destroy("dic"),text="x").show()
         win.show()
         write1.clean()
 
@@ -1410,7 +1397,7 @@ class Page_Organize:
         t3 = Entry(wid,f"background:rgba(209, 142, 109, 0.4);color:#dd7aff;font-family:Arial;font-size:12pt;",[0,360,300,30],s["Background"])
         for i in [m_label, c_label,m_rate_label,c_rate_label, m_scale, c_scale,m_rate_scale,c_rate_scale, t0, t1, t2, t3]:
             i.show()
-        Button(win,[300, 0, 15, 15],lambda: self.destroy("set"),text="x").show()
+        Button(win,[300, 0, 20, 15],lambda: self.destroy("set"),text="x").show()
         win.show()
 
     def exe(self):
@@ -1600,7 +1587,7 @@ def double_clicked():
         if len(listbox.selectedIndexes()) == 1 and n == 2:
             d["music"][combo.currentText()]["Number"] = listbox.currentRow()
             Data.write(d)
-            Music.play_list_start(combo.currentText())
+            Music.play_list_start()
 
 
 def count():
@@ -1631,7 +1618,7 @@ def music_play():
             h = Data.load()
             h["music"][combo.currentText()]["Number"] = listbox.selectedIndexes()[0].row()
             Data.write(h)
-        Music.play_list_start(combo.currentText())
+        Music.play_list_start()
     elif Music.states == "play":
         Music.pause_list()
     else:
@@ -1651,9 +1638,9 @@ def add_music():
         listbox.insertItem(n + 1, c[0])
 
 
-def edit_func():
+def edit_func(text):
     listbox.clear()
-    li = Data.get("music")[combo.currentText()]
+    li = Data.get("music")[text]
     listbox.addItems(li["list"])
     if len(li["list"]) > li["Number"]:
         listbox.setCurrentRow(li["Number"])
@@ -1696,7 +1683,7 @@ def edit():
                 h["music"][combo.currentText()]["list"][i] = ma.textValue()
         Data.write(h)
         ma.deleteLater()
-        edit_func()
+        edit_func(combo.currentText())
 
 
 def set_play_mode():
@@ -1764,6 +1751,15 @@ def click_print(self:QtWidgets.QWidget,a0:QtCore.QPoint):
     anima.start(50)
 
 
+def com(_combo:Combo):
+    edit_func(_combo.currentText())
+    if "mini" in Page.page:
+        if _combo is combo:
+            Page.minidict["combo"].setCurrentText(combo.currentText())
+        else:
+            combo.setCurrentText(_combo.currentText())
+
+
 app = QtWidgets.QApplication(sys.argv)
 app.setWindowIcon(QIcon(r".\init_file\music.ico"))
 Data = Interaction(path + "homework.json")
@@ -1817,7 +1813,7 @@ Button(g1,[60, 0, 50, 50],lambda: Page.dic(),image=QIcon(f"{path}icon\\dict.png"
 Button(g1,[110, 0, 50, 50],lambda: Page.learn(),image=QIcon(f"{path}icon\\learn.png"),style="background:transparent;").show()
 Button(g1,[160, 0, 50, 50],lambda: Page.clas(),image=QIcon(f"{path}icon\\class.png"),style="background:transparent;").show()
 Button(g1,[210, 0, 50, 50],lambda: Page.exe(),image=QIcon(f"{path}icon\\exec.png"),style="background:transparent;border-radius:25px;").show()
-button_style=f"QPushButton {{background:{color};color:#ffffff;border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:#ffffff;background:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.4);}}"
+button_style=f"QPushButton {{background:{color};color:{color_bg};border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:{color_bg};background:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.4);}}"
 Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-").show()
 Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
 Todo_Win = NotitleWidget(main_window, "todo", 250, 290)
@@ -1865,7 +1861,7 @@ text_home.setReadOnly(True)
 show_todo()
 Song_Win = NotitleWidget(main_window, "song", 250, 330)
 combo = Combo(Song_Win, "Arial", 15, 8, False, geometry=[0, 0, 100, 30])
-combo.textActivated.connect(edit_func)
+combo.textActivated.connect(lambda:com(combo))
 song_home = Label(Song_Win, [10, 30, 250, 30], text=Music.song.get(), style=style0 + "font-size:12pt;")
 Music.song.add(song_home)
 Button(Song_Win,[70, 65, 15, 15],last,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
