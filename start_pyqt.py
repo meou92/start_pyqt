@@ -877,10 +877,6 @@ class Page_Organize:
         def play_command():
             com(comb)
             music_play()
-        
-        def set_play_mode_mini():
-            Music.mode = {"all_once":"all_infinite","all_infinite":"one_infinite","one_infinite":"all_once"}[Music.mode]
-            mode.setIcon(QIcon(f"{path}home\\{Music.mode}.png"))
 
         win = self.add_win("mini", color=color, x=155, y=135)
         win.setWindowOpacity(0.8)
@@ -919,9 +915,10 @@ class Page_Organize:
         Music.set_button("1", play)
         Button(win,[40, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
         Button(win,[65, 115, 15, 15],nexted,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
-        mode = Button(win,[130, 110, 25, 25],set_play_mode_mini,image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
-        Button(win, [140, 0, 15, 15], des, text="x",style=f"background:transparent;color:{color_bg};").show()
-        self.minidict = {"time":time,"date":date, "combo":comb}
+        mode = Button(win,[130, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
+        mode.command=lambda:set_play_mode(mode)
+        Button(win, [140, 0, 15, 15], des, text="x").show()
+        self.minidict = {"time":time,"date":date, "combo":comb, "mode":mode}
         for i in [time,date,comb,play,mode]:
             i.show()
         win.show()
@@ -1703,9 +1700,15 @@ def edit():
         edit_func(combo.currentText())
 
 
-def set_play_mode():
-    Music.mode = {"all_once":"all_infinite","all_infinite":"one_infinite","one_infinite":"all_once"}[Music.mode]
-    mode.setIcon(QIcon(f"{path}home\\{Music.mode}.png"))
+def set_play_mode(_mode:Button):
+    Music.mode = modes[(modes.index(Music.mode)+1)%3]
+    icon=QIcon(f"{path}home\\{Music.mode}.png")
+    _mode.setIcon(icon)
+    if "mini" in Page.page:
+        if _mode is mode:
+            Page.minidict["mode"].setIcon(icon)
+        else:
+            mode.setIcon(icon)
 
 
 def last():
@@ -1777,6 +1780,7 @@ def com(_combo:Combo):
             combo.setCurrentText(_combo.currentText())
 
 
+modes=["all_once","all_infinite","one_infinite"]
 app = QtWidgets.QApplication(sys.argv)
 app.setWindowIcon(QIcon(r".\init_file\music.ico"))
 Data = Interaction(path + "homework.json")
@@ -1888,7 +1892,8 @@ Music.set_button("music", button_play)
 background = f"rgba({colora[0]}, {colora[1]}, {colora[2]},0.46)"
 Button(Song_Win,[125, 60, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
 Button(Song_Win,[165, 65, 15, 15],nexted,image=QIcon(f"{path}home\\next.png"),style="background-color:transparent;").show()
-mode = Button(Song_Win,[225, 60, 25, 25],set_play_mode,image=QIcon(f"{path}home\\{Music.mode}.png"),style="background-color:transparent;",)
+mode = Button(Song_Win,[225, 60, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background-color:transparent;",)
+mode.command=lambda:set_play_mode(mode)
 mode.show()
 slider = Slider(Song_Win, 5, 85, 240, 20)
 slider.actionTriggered.connect(lambda:Music.slider_change(slider))
