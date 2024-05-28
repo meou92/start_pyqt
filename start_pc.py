@@ -173,7 +173,7 @@ class Button(QtWidgets.QPushButton):
         if self.command != None:
             self.command()
         if not sip.isdeleted(self):
-            click_print(self.parentWidget(),a0.pos()+self.pos())
+            clicked_label.add(self.parentWidget(),a0.pos()+self.pos())
         a0.accept()
 
 
@@ -431,7 +431,7 @@ class NotitleWidget(WID):
         self.text = text
         self.moveFlag = False
     def mousePressEvent(self, a0):
-        click_print(self,a0.pos())
+        clicked_label.add(self,a0.pos())
         if a0.button() == Qt.MouseButton.LeftButton:
             self.moveFlag = True
             self.movePosition = a0.globalPosition().toPoint() - self.pos()
@@ -457,7 +457,7 @@ class TopWin(WID):
         self.text = text
         self.moveFlag = False
     def mousePressEvent(self, a0):
-        click_print(self,a0.pos())
+        clicked_label.add(self,a0.pos())
         if a0.button() == Qt.MouseButton.LeftButton:
             self.moveFlag = True
             self.movePosition = a0.globalPosition().toPoint() - self.pos()
@@ -1429,7 +1429,7 @@ class TextEdit(QtWidgets.QTextEdit):
 class WST(TextEdit):
     def mousePressEvent(self, e: QtGui.QMouseEvent | None) -> None:
         super().mousePressEvent(e)
-        click_print(self,e.pos())
+        clicked_label.add(self,e.pos())
         self.parentWidget().raise_()
         e.accept()
 
@@ -1442,7 +1442,7 @@ class TEXT(QtWidgets.QTextEdit):
         self.rol = self.verticalScrollBar()
     def mousePressEvent(self, e: QtGui.QMouseEvent | None):
         super().mousePressEvent(e)
-        click_print(self,e.pos())
+        clicked_label.add(self,e.pos())
         self.parentWidget().raise_()
         e.accept()
 
@@ -1577,14 +1577,13 @@ class WriteIt(WST):
 
 
 def double_clicked():
+    clicked_label.add(Song_Win,Song_Win.mapFromGlobal(QtGui.QCursor.pos()))
     d = Data.load()
-    if combo.currentText() in d["music"] and listbox.count()>0:
-        n = Music.play_already
+    if combo.currentText() in d["music"] and listbox.currentItem()!=None and Music.play_already == 2:
         Music.stop()
-        if len(listbox.selectedIndexes()) == 1 and n == 2:
-            d["music"][combo.currentText()]["Number"] = listbox.currentRow()
-            Data.write(d)
-            Music.play_list_start()
+        d["music"][combo.currentText()]["Number"] = listbox.currentRow()
+        Data.write(d)
+        Music.play_list_start()
 
 
 def count():
@@ -1725,33 +1724,45 @@ def nexted():
                 listbox.setCurrentRow(0)
 
 
-def click_print(self:QtWidgets.QWidget,a0:QtCore.QPoint):
-
-    def animation():
-        nonlocal num
-        if not sip.isdeleted(label):
-            if num < 30:
+class ClickedLabel():
+    __slots__ = ["lists","timer"]
+    def __init__(self):
+        self.lists:list[list] = []
+        """Label,\\
+        QtWidgets.QGraphicsOpacityEffect,\\
+        QtCore.QPoint,\\
+        int"""
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(lambda:self.animation())
+        self.timer.start(100)
+    def add(self,parent:QtWidgets.QWidget,a0:QtCore.QPoint):
+        label = Label(parent,[a0.x(),a0.y(),0,0],image=p.scaled(0,0),style="background:transparent;")
+        opacity = QtWidgets.QGraphicsOpacityEffect()
+        opacity.setOpacity(1.0)
+        label.setGraphicsEffect(opacity)
+        label.show()
+        parent.setFocus(Qt.FocusReason.MouseFocusReason)
+        self.lists.append([label,opacity,a0,0])
+    def animation(self):
+        number=0
+        label:Label
+        opacity:QtWidgets.QGraphicsOpacityEffect
+        a0:QtCore.QPoint
+        num:int
+        for (label, opacity,a0,num) in self.lists:
+            if not sip.isdeleted(label):
                 num+=6
-                n=int(num/2)
-                label.setGeometry(a0.x()-n,a0.y()-n,num,num)
-                label.setPixmap(p.scaled(num,num))
-            elif num ==30:
-                num+=6
-                opacity.setOpacity(0.5)
-            else:
-                anima.stop()
-                sip.delete(label)
-                sip.delete(anima)
-    
-    num = 0
-    label = Label(self,[a0.x(),a0.y(),0,0],image=p.scaled(0,0),style="background:transparent;")
-    opacity = QtWidgets.QGraphicsOpacityEffect()
-    opacity.setOpacity(1.0)
-    label.setGraphicsEffect(opacity)
-    label.show()
-    anima = QtCore.QTimer()
-    anima.timeout.connect(animation)
-    anima.start(50)
+                self.lists[number][3]=num
+                if num < 30:
+                    n=int(num/2)
+                    label.setGeometry(a0.x()-n,a0.y()-n,num,num)
+                    label.setPixmap(p.scaled(num,num))
+                elif num ==30:
+                    opacity.setOpacity(0.5)
+                else:
+                    sip.delete(label)
+                    self.lists.pop(number)
+            number+=1
 
 
 def com(_combo:Combo):
@@ -1769,6 +1780,7 @@ app.setWindowIcon(QIcon(r".\init_file\music.ico"))
 Data = Interaction(path + "homework.json")
 Page = Page_Organize()
 Timer = Timers()
+clicked_label = ClickedLabel()
 Music = MusicPlayer()
 Vdate = Valiable("")
 Vtime = Valiable("")
@@ -1784,14 +1796,18 @@ color2 = f"rgb({','.join(map(str,colora2))})"
 color_bg = colors["bg"]
 m = app.screens()[0].size()
 main_window = QtWidgets.QMainWindow()
-main_window.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
 main_window.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 main_window.setWindowTitle("Start")
 main_window.setWindowFlag(Qt.WindowType.FramelessWindowHint,True)
 main_window.setWindowFlag(Qt.WindowType.WindowStaysOnBottomHint, True)
 main_window.setWindowFlag(Qt.WindowType.MaximizeUsingFullscreenGeometryHint, True)
 main_window.showMaximized()
-main_window.mousePressEvent = lambda a0:click_print(main_window,a0.pos())
+main_window.mousePressEvent = lambda a0:clicked_label.add(main_window,a0.pos())
+if Data.get("set")["cursor"]!="":
+    pximap = QPixmap(Data.get("set")["cursor"])
+    pximap = pximap.scaled(30, 30)
+    cursor = QtGui.QCursor(pximap,0,0)
+    main_window.setCursor(cursor)
 img0 = Image.open(Data.get("set")["Background"])
 qimg0 = ImageQt.toqimage(img0)
 qimg1 = ImageQt.toqimage(img0.filter(ImageFilter.GaussianBlur(20)))
@@ -1909,9 +1925,10 @@ listbox.setStyleSheet(f"""
     QScrollBar::add-line:horizontal {{height: 12px;width: 10px;background: transparent;subcontrol-position: right;}}
 """)
 listbox.itemDoubleClicked.connect(double_clicked)
+com(combo)
 listbox.show()
 Timer_Win = NotitleWidget(main_window, "timer", 140, 55)
-style = f"""background-color:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.78);font-family:Arial;font-size:24pt;font-weight:bold;color:#d48649"""
+style = f"background-color:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.78);font-family:Arial;font-size:24pt;font-weight:bold;color:#d48649"
 Timer_l1 = Label(Timer_Win, [0, 0, 140, 30], text=Data.show.get(), style=style)
 Timer_l1.setAlignment(align.AlignRight)
 Data.show.add(Timer_l1)
