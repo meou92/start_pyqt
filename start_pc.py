@@ -1481,53 +1481,45 @@ def show_battery():
         win.destroy(True, True)
         sip.delete(win)
 
-    win = NotitleWidget(main_window, "battery", 185, 90)
-    win.setStyleSheet("background:transparent;")
-    s = "color:%s;background:transparent;font-family:Arial;font-size:17pt;"
-    progress_style = """
-        QProgressBar {
-            background: transparent;
-            border: none;
-        }
-        QProgressBar::chunk {
-            background: %s;
-        }
-    """
+    win = NotitleWidget(main_window, "battery", 180, 90)
+    co2 = ",".join(map(str, colora2))
+    s = "color:%s;background:rgba("+co2+",0.4);font-family:Arial;font-size:17pt;"
+    progress_style = "QProgressBar {background: rgba("+co2+",0.4);border: none;} QProgressBar::chunk {background: %s;}"
     Label(win,[0,0,60,27],text="RAM",style=s%"#d18e6d").show()
-    label_memory = Label(win,[30, 0, 140, 27],text="",style=s%"#d18e6d",)
+    label_memory = Label(win,[30, 0, 120, 27],text="",style=s%"#d18e6d",)
     label_memory.setAlignment(align.AlignRight)
     label_memory.show()
     scale_memory = QtWidgets.QProgressBar(win)
     scale_memory.setRange(0,10000)
     scale_memory.setStyleSheet(progress_style % "#d18e6d")
-    scale_memory.setGeometry(0,27,170,3)
+    scale_memory.setGeometry(0,27,180,3)
     scale_memory.show()
     Label(win,[0,30,60,27],text="CPU",style=s % "#ff6cd1").show()
-    label_cpu = Label(win,[30, 30, 140, 27],text="",style=s % "#ff6cd1",)
+    label_cpu = Label(win,[30, 30, 120, 27],text="",style=s % "#ff6cd1",)
     label_cpu.setAlignment(align.AlignRight)
     label_cpu.show()
     scale_cpu = QtWidgets.QProgressBar(win)
     scale_cpu.setRange(0,10000)
     scale_cpu.setStyleSheet(progress_style % "#ff6cd1")
-    scale_cpu.setGeometry(0,57,170,3)
+    scale_cpu.setGeometry(0,57,180,3)
     scale_cpu.show()
     label_dict:dict[str,list[Label,QtWidgets.QProgressBar]] = {}
     h=60
     for i in psutil.disk_partitions():
         Label(win, [0, h, 60, 27], text=f"{i.device}  ", style=s % "#6ae680").show()
-        l = Label(win,[60,h,120,27],text="",style=f"color:#6ae680;background:transparent;font-family:Arial;font-size:17pt;",)
+        l = Label(win,[60,h,120,27],text="",style=s % "#6ae680",)
         l.setAlignment(align.AlignRight)
         l.show()
         ps = QtWidgets.QProgressBar(win)
         ps.setRange(0,10000)
         ps.setStyleSheet(progress_style % "#6ae680")
-        ps.setGeometry(0,h+27,170,3)
+        ps.setGeometry(0,h+27,180,3)
         ps.show()
         label_dict[i.device] = [l,ps]
         h+=30
     after()
     Timer.add_func_1000(after)
-    win.setGeometry(*Data.get("window")["battery"], 185, h)
+    win.adjustSize()
     win.show()
 
 
@@ -1728,41 +1720,30 @@ class ClickedLabel():
     __slots__ = ["lists","timer"]
     def __init__(self):
         self.lists:list[list] = []
-        """Label,\\
-        QtWidgets.QGraphicsOpacityEffect,\\
-        QtCore.QPoint,\\
-        int"""
         self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(lambda:self.animation())
-        self.timer.start(100)
+        self.timer.timeout.connect(lambda:self.exec_animation())
+        self.timer.start(50)
     def add(self,parent:QtWidgets.QWidget,a0:QtCore.QPoint):
         label = Label(parent,[a0.x(),a0.y(),0,0],image=p.scaled(0,0),style="background:transparent;")
         opacity = QtWidgets.QGraphicsOpacityEffect()
         opacity.setOpacity(1.0)
         label.setGraphicsEffect(opacity)
         label.show()
-        parent.setFocus(Qt.FocusReason.MouseFocusReason)
         self.lists.append([label,opacity,a0,0])
-    def animation(self):
-        number=0
-        label:Label
-        opacity:QtWidgets.QGraphicsOpacityEffect
-        a0:QtCore.QPoint
-        num:int
-        for (label, opacity,a0,num) in self.lists:
-            if not sip.isdeleted(label):
-                num+=6
-                self.lists[number][3]=num
-                if num < 30:
-                    n=int(num/2)
-                    label.setGeometry(a0.x()-n,a0.y()-n,num,num)
-                    label.setPixmap(p.scaled(num,num))
-                elif num ==30:
-                    opacity.setOpacity(0.5)
-                else:
-                    sip.delete(label)
-                    self.lists.pop(number)
-            number+=1
+    def anima(self,label:Label,opacity:QtWidgets.QGraphicsOpacityEffect,a0:QtCore.QPoint,num:int, number:int):
+        num+=10
+        self.lists[number][3]=num
+        if num < 40:
+            n=int(num/2)
+            label.setGeometry(a0.x()-n,a0.y()-n,num,num)
+            label.setPixmap(p.scaled(num,num))
+        elif num ==40:
+            opacity.setOpacity(0.5)
+        else:
+            sip.delete(label)
+            self.lists.pop(number)
+    def exec_animation(self):
+        list(map(lambda x:self.anima(*x,self.lists.index(x)),self.lists))
 
 
 def com(_combo:Combo):
