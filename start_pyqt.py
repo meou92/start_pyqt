@@ -17,7 +17,7 @@ from PIL import Image, ImageFilter, ImageQt
 path = os.getcwd() + "\\init_file\\"
 __stderr__ = open(f"{path}start_log.txt", "a")
 sys.stderr = __stderr__
-page_type = Literal["todo", "dic", "learn", "clas", "mini", "set","exe"]
+page_type = Literal["todo", "dic", "learn", "clas", "set","addiction"]
 align = Qt.AlignmentFlag
 MessageBox = QtWidgets.QMessageBox
 
@@ -178,9 +178,9 @@ class Button(QtWidgets.QPushButton):
     def mousePressEvent(self,a0:QtGui.QMouseEvent):
         if self.command != None:
             self.command()
+        a0.accept()
         if not sip.isdeleted(self):
             clicked_label.add(self.parentWidget(),a0.pos()+self.pos())
-        a0.accept()
 
 
 class Combobox(QtWidgets.QComboBox):
@@ -225,6 +225,15 @@ class Entry(QtWidgets.QLineEdit):
         super().__init__(text, parent)
         self.setStyleSheet(style)
         self.setGeometry(*geometry)
+
+
+def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0):
+    pb = QtWidgets.QProgressBar(parent)
+    pb.setRange(min,max)
+    pb.setStyleSheet(stylesheet)
+    pb.setGeometry(0,y,180,3)
+    pb.show()
+    return pb
 
 
 class Choose(QtWidgets.QCheckBox):
@@ -458,8 +467,8 @@ class NotitleWidget(WID):
 
 
 class TopWin(WID):
-    def __init__(self, parent: QtWidgets.QWidget | None, text="", color="transparent", *geometry):
-        super().__init__(parent, f"background-color:{color};", *Data.get("page")[text], *geometry[:2])
+    def __init__(self, parent: QtWidgets.QWidget | None, text:page_type, color="transparent", x=0,y=0):
+        super().__init__(parent, f"background-color:{color};", *Data.get("page")[text], x,y)
         self.text = text
         self.moveFlag = False
     def mousePressEvent(self, a0):
@@ -570,7 +579,7 @@ class MusicPlayer:
     def change_button(self, text="播放"):
         icon = QIcon(f"{path}icon\\{text}.png")
         button_play.setIcon(icon)
-        if "mini" in Page.page:
+        if "addiction" in Page.page:
             self.button_dict["1"].setIcon(icon)
         elif "1" in self.button_dict:
             del self.button_dict["1"]
@@ -710,7 +719,7 @@ class Interaction:
             hour, minute, second = list(map(lambda x: int(x.currentText()), [e0, e1, e2]))
             self.show.set(f"{hour:02d}:{minute:02d}:{second:02d}")
             self.time = hour * 3600 + minute * 60 + second
-            win.destroy()
+            win.deleteLater()
 
         if not self.count:
             win = WID(None, f"background-color:{color};", 400, 400, 200, 180)
@@ -773,53 +782,55 @@ class Page_Organize:
     __slots__ = ["page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","minidict","tododict","cal"]
 
     class But(QtWidgets.QPushButton):
-        def __init__(self, master, geometry=[], command=None,text="",image: QtGui.QIcon = None):
-            """
-            ::geometry: x, y, w, h
-            """
+        def __init__(self, master, x,y,w,h, command=None,text="",image: QtGui.QIcon = None,num=0):
             super().__init__(master)
-            m = Data.get("exe")[text]
-            b = Button(master,[geometry[0],geometry[1]+geometry[3],geometry[2],15],lambda:self.win(text,m["exec"],m["icon"],m["geometry"]),text=text,style=f"color:{color2};background:transparent;text-align:left;")
+            b = Button(master,[x,y+h,w,15],lambda:self.win(text,command,image,[w,h],num),text=text,style=f"color:{color2};background:transparent;text-align:left;")
             b.adjustSize()
             b.show()
-            self.setIconSize(QtCore.QSize(*geometry[2:]))
+            self.b=b
             self.setIcon(image)
+            self.setIconSize(QtCore.QSize(w,h))
+            self.setGeometry(x,y,w,h)
             self.setStyleSheet("background:transparent;")
             if type(command)==str and command[:4] == "http":
                 self.clicked.connect(lambda:webbrowser.open(command))
             elif type(command) == str:
                 self.clicked.connect(lambda:os.popen(command))
-            self.setGeometry(*geometry)
+            self.show()
         @staticmethod
-        def win(text,exec,icon,geometry):
+        def win(text,exec,icon,geometry,num):
             def submit():
-                geometry=list(map(lambda x:int(x.text()),[entry_x,entry_y,entry_wx,entry_wy]))
-                if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()] and 0 not in geometry[-2:]:
-                    h = Data.load()
-                    if text in Data.get("exe"):
-                        h["exe"].pop(text)
-                    h["exe"][entry_text.text()] = {"exec": entry_exec.text(),"icon": entry_icon.text(),"geometry": geometry}
+                h = Data.load()
+                width = int(entry_x.text())
+                height = int(entry_y.text())
+                if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()] and 0 not in [width,height]:
+                    if len(filter(lambda x:text==x["text"],h["exe"]))==1:
+                        h["exe"].pop(num)
+                    h["exe"].insert(entry_num.currentIndex(),{"text":entry_text.text(),"exec": entry_exec.text(),"icon": entry_icon.text(),"width":width,"height":height})
                     Data.write(h)
-                    Page.exe()
+                    Page.addiction()
                     window.destroy(True,True)
                     sip.delete(window)
             def delete():
-                if text in Data.get("exe"):
+                o=list(filter(lambda x:text==x["text"],h["exe"]))
+                if len(o)==1:
                     h = Data.load()
-                    h["exe"].pop(text)
+                    h["exe"].pop(h["exe"].index(o[0]))
                     Data.write(h)
-                    Page.exe()
+                    Page.addiction()
                 window.destroy(True,True)
 
             def set_exec():
-                entry_exec.setText(QtWidgets.QFileDialog.getOpenFileName(main_window, directory=path,filter="Exec(*.exe)")[0])
+                file = QtWidgets.QFileDialog.getOpenFileName(main_window, directory=path,filter="Exec(*.exe)")
+                entry_exec.setText(file[0])
 
             def set_icon():
-                entry_icon.setText(QtWidgets.QFileDialog.getOpenFileName(main_window, directory=path,filter="Icon(*.ico);;Png(*.png);;Jpeg(*.jpeg,*.jpg)")[0])
+                file = QtWidgets.QFileDialog.getOpenFileName(main_window, directory=path,filter="Icon(*.ico);;Png(*.png);;Jpeg(*.jpeg,*.jpg);;All(*.*)")
+                entry_icon.setText(file[0])
 
             window = WID(None,"",*Data.get("page")["exe"],200,150)
             window.setWindowFlag(Qt.WindowType.SubWindow,True)
-            window.setWindowTitle("add")
+            window.setWindowTitle("add" if text==exec==icon=="" else text)
             entry_text = Entry(window,"",[0,0,200,30],text)
             entry_text.show()
             entry_exec = Entry(window,"",[0,30,150,30],exec)
@@ -828,14 +839,13 @@ class Page_Organize:
             entry_icon = Entry(window,"",[0,60,150,30],icon)
             entry_icon.show()
             Button(window,[150,60,50,30],set_icon,text="set").show()
-            entry_x = Entry(window,"",[0,90,50,30],str(geometry[0]))
+            entry_num = Combobox(window,"",range(len(Data.get("exe"))),[0,90,100,30])
+            entry_num.setCurrentIndex(num)
+            entry_num.show()
+            entry_x = Entry(window,"",[100,90,50,30],str(geometry[0]))
             entry_x.show()
-            entry_y = Entry(window,"",[50,90,50,30],str(geometry[1]))
+            entry_y = Entry(window,"",[150,90,50,30],str(geometry[1]))
             entry_y.show()
-            entry_wx = Entry(window,"",[100,90,50,30],str(geometry[2]))
-            entry_wx.show()
-            entry_wy = Entry(window,"",[150,90,50,30],str(geometry[3]))
-            entry_wy.show()
             Button(window,[0,120,50,30],submit,text="submit").show()
             Button(window,[50,120,50,30],delete,text="cancel" if text==exec==icon=="" else "delete").show()
             window.show()
@@ -854,7 +864,7 @@ class Page_Organize:
 
     def add_win(self,page: page_type,parent: QtWidgets.QMainWindow | None = None,color="transparent",x=0,y=0,):
         if page in self.page:
-            if page == "mini":
+            if page == "addiction":
                 Vtime.delete(self.minidict["time"])
                 Vdate.delete(self.minidict["date"])
             self.destroy(page)
@@ -865,63 +875,6 @@ class Page_Organize:
     def destroy(self, page: page_type):
         if page in self.page:
             sip.delete(self.page.pop(page))
-
-    def mini(self):
-        def des():
-            Vtime.delete(time)
-            Vdate.delete(date)
-            Music.slider.pop()
-            Music.show_duration.widget.pop()
-            self.destroy("mini")
-        
-        def play_command():
-            com(comb)
-            music_play()
-
-        win = self.add_win("mini", color=color, x=155, y=135)
-        win.setWindowOpacity(0.8)
-        win.setWindowFlags(Qt.WindowType.FramelessWindowHint|Qt.WindowType.WindowStaysOnTopHint)
-        time = Label(win,[0, 0, 155, 30],text=Vtime.get(),style=f"background-color:{color};color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:20pt;font-weight:bold;",)
-        time.setAlignment(align.AlignCenter)
-        Vtime.add(time)
-        date = Label(win,[0, 30, 155, 30],text=Vdate.get(),style=f"background-color:{color};color:#FFAEC9;font-family:Arial;font-size:10pt;font-weight:bold;",)
-        date.setAlignment(align.AlignCenter)
-        Vdate.add(date)
-        comb = Combo(win, "Arial", 12, 8, True, geometry=[0, 60, 155, 30])
-        comb.activated.connect(lambda:com(comb))
-        slider_mini = Slider(win, 0, 90, 155, 10)
-        slider_mini.setStyleSheet("""
-            QSlider::groove:horizontal {
-                height: 10px;border-radius: 5px;background: rgba(123,79,79,0.74);
-            }
-            QSlider::handle:horizontal {
-                background: #d18e6d;width: 10px;height: 10px;margin: 0px 0;border-radius: 5px;
-            }
-            QSlider::sub-page:horizontal {
-                border-radius: 5px;background:#ffb688;
-            }
-            QSlider {
-                background: transparent;border-radius: 5px;
-            }
-        """)
-        slider_mini.actionTriggered.connect(lambda:Music.slider_change(slider_mini))
-        slider_mini.setRange(0,int(slider.maximum()))
-        Music.add_slider(slider_mini)
-        l = Label(win,[0,100,70,15],text="00:00/00:00",style=f"color:{color_bg};")
-        Music.show_duration.add(l)
-        l.show()
-        Button(win,[0,115, 15, 15],last,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
-        play = Button(win, [15, 110, 25, 25], play_command, image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;")
-        Music.set_button("1", play)
-        Button(win,[40, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
-        Button(win,[65, 115, 15, 15],nexted,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
-        mode = Button(win,[130, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
-        mode.command=lambda:set_play_mode(mode)
-        Button(win, [140, 0, 15, 15], des, text="x").show()
-        self.minidict = {"time":time,"date":date, "combo":comb, "mode":mode}
-        for i in [time,date,comb,play,mode]:
-            i.show()
-        win.show()
 
     def todo(self):
         def clicked():
@@ -1403,13 +1356,165 @@ class Page_Organize:
         Button(win,[300, 0, 20, 15],lambda: self.destroy("set"),text="x").show()
         win.show()
 
-    def exe(self):
-        l = Data.get("exe")
-        win = self.add_win("exe", main_window,f"rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.6);", 300, 300)
-        for i in l:
-            Page_Organize.But(win,l[i]["geometry"],l[i]["exec"],i,QIcon(l[i]["icon"])).show()
-        Button(win,[250,0,30,20],lambda:Page_Organize.But.win("","","",[0,0,0,0]),text="add").show()
-        Button(win,[280, 0, 20, 20],lambda: self.destroy("exe"),text="x").show()
+    def addiction(self):
+        def des():
+            Timer.del_func_1000(after)
+            Vtime.delete(time)
+            Vdate.delete(date)
+            Data.show.delete(Timer_l1)
+            Music.slider.pop()
+            Music.show_duration.widget.pop()
+            self.minidict={}
+            self.destroy("addiction")
+        
+        def play_command():
+            com(comb)
+            music_play()
+        
+        def move():
+            if win.pos().x()==m.width()-30:
+                win.move(m.width()-230,0)
+            else:
+                win.move(m.width()-30,0)
+        
+        def mouse(a0):
+            a0.accept()
+
+        def after():
+            label_battery.setText(f"{psutil.sensors_battery().percent}%")
+            scale_battery.setValue(psutil.sensors_battery().percent)
+            label_memory.setText(f"{psutil.virtual_memory().percent:05.2f}%")
+            scale_memory.setValue(int(psutil.virtual_memory().percent*100))
+            cpu = sum(psutil.cpu_percent(interval=0.5,percpu=True))/psutil.cpu_count(False)
+            label_cpu.setText(f"{cpu:05.2f}%")
+            scale_cpu.setValue(int(cpu*100))
+            for i in label_dict:
+                try:
+                    label_dict[i][0].setText(f"{psutil.disk_usage(i).percent:05.2f}%")
+                    label_dict[i][1].setValue(int(psutil.disk_usage(i).percent*100))
+                except:
+                    ...
+            if len(psutil.disk_partitions()) != len(label_dict):
+                des()
+                Page.addiction()
+        
+        def count():
+            if Data.count:
+                Data.count = False
+                Data.ctime = -1
+                Data.timer.stop()
+                button_count.setIcon(QtGui.QIcon(f"{path}icon\\播放.png"))
+            else:
+                Data.start()
+                button_count.setIcon(QtGui.QIcon(f"{path}\\icon\\暫停.png"))
+        
+        win = self.add_win("addiction",color=color_bg,x=230,y=m.height())
+        win.mouseMoveEvent = mouse
+        win.move(m.width()-30,0)
+        win.setWindowOpacity(0.8)
+        types = Qt.WindowType
+        win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet)
+        win_all = WID(win,f"background:{color};",30,0,200,m.height())
+        win_all.setAttribute(Qt.WidgetAttribute.WA_StyledBackground,True)
+        Button(win,[0,int(m.height()//2-35),30,30],move,text=" ").show()
+        Button(win, [0,int(m.height()//2+35),30,30], des, text="x").show()
+        time = Label(win_all,[0, 0, 200, 30],text=Vtime.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:22pt;font-weight:bold;",)
+        time.setAlignment(align.AlignCenter)
+        Vtime.add(time)
+        date = Label(win_all,[0, 30, 200, 30],text=Vdate.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial;font-size:12pt;font-weight:bold;",)
+        date.setAlignment(align.AlignCenter)
+        Vdate.add(date)
+        comb = Combo(win_all, "Arial", 14, 8, True, geometry=[0, 60, 200, 30])
+        comb.activated.connect(lambda:com(comb))
+        slider_mini = Slider(win_all, 0, 90, 200, 10)
+        slider_mini.setStyleSheet("""
+            QSlider::groove:horizontal {
+                height: 10px;border-radius: 5px;background: rgba(123,79,79,0.74);
+            }
+            QSlider::handle:horizontal {
+                background: #d18e6d;width: 10px;height: 10px;margin: 0px 0;border-radius: 5px;
+            }
+            QSlider::sub-page:horizontal {
+                border-radius: 5px;background:#ffb688;
+            }
+            QSlider {
+                background: transparent;border-radius: 5px;
+            }
+        """)
+        slider_mini.actionTriggered.connect(lambda:Music.slider_change(slider_mini))
+        slider_mini.setRange(0,int(slider.maximum()))
+        Music.add_slider(slider_mini)
+        l = Label(win_all,[0,100,70,15],text="00:00/00:00",style=f"color:{color_bg};")
+        Music.show_duration.add(l)
+        l.show()
+        Button(win_all,[0,115, 15, 15],last,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
+        play = Button(win_all, [15, 110, 25, 25], play_command, image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;")
+        Music.set_button("1", play)
+        Button(win_all,[40, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
+        Button(win_all,[65, 115, 15, 15],nexted,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
+        mode = Button(win_all,[130, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
+        mode.command=lambda:set_play_mode(mode)
+        Timer_Win = WID(win_all,"background:#00000000;",0,135,200,60)
+        Timer_l1 = Label(Timer_Win, [0, 0, 200, 35], text=Data.show.get(), style=f"background-color:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.78);font-family:Arial;font-size:26pt;font-weight:bold;color:#d48649")
+        Timer_l1.setAlignment(align.AlignRight)
+        Data.show.add(Timer_l1)
+        Timer_l1.show()
+        button_count = Button(Timer_Win,[70, 35, 25, 25],count,image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;",)
+        button_count.show()
+        Button(Timer_Win,[105, 35, 25, 25],lambda: Data.set_win(),image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
+        Timer_Win.show()
+        win_battery = WID(win_all,"background:#00000000;",0,195,200,120)
+        co = ",".join(map(str, colora))
+        s = "color:%s;background:rgba("+co+",0.5);font-family:Arial;font-size:17pt;"
+        progress_style = "QProgressBar {background: rgba("+co+",0.5);border: none;} QProgressBar::chunk {background: %s;}"
+        Label(win_battery,[0,0,80,27],text="Battery",style=s%color2).show()
+        label_battery = Label(win_battery,[80, 0, 100, 27],text="",style=s%color2)
+        label_battery.setAlignment(align.AlignRight)
+        label_battery.show()
+        scale_battery = progressbar(win_battery,0,100,progress_style % color2,27)
+        Label(win_battery,[0,30,60,27],text="RAM",style=s%color_bg).show()
+        label_memory = Label(win_battery,[60, 30, 120, 27],text="",style=s%color_bg,)
+        label_memory.setAlignment(align.AlignRight)
+        label_memory.show()
+        scale_memory = progressbar(win_battery,0,10000,progress_style % color_bg,57)
+        Label(win_battery,[0,60,60,27],text="CPU",style=s % "#ff6cd1").show()
+        label_cpu = Label(win_battery,[60, 60, 120, 27],text="",style=s % "#ff6cd1",)
+        label_cpu.setAlignment(align.AlignRight)
+        label_cpu.show()
+        scale_cpu = progressbar(win_battery,0,10000,progress_style % "#ff6cd1",87)
+        label_dict:dict[str,list[Label,QtWidgets.QProgressBar]] = {}
+        h=90
+        for i in psutil.disk_partitions():
+            Label(win_battery, [0, h, 60, 27], text=f"{i.device}  ", style=s % "#6ae680").show()
+            l = Label(win_battery,[60,h,120,27],text="",style=s % "#6ae680",)
+            l.setAlignment(align.AlignRight)
+            l.show()
+            ps = progressbar(win_battery,0,10000,progress_style % "#6ae680",h+27)
+            label_dict[i.device] = [l,ps]
+            h+=30
+        after()
+        Timer.add_func_1000(after)
+        win_battery.adjustSize()
+        win_battery.show()
+        exec_list:list = Data.get("exe")
+        win_exec = WID(win_all,"background:#00000000;",0,0,200,200)
+        width=0
+        height=0
+        num=0
+        for i in exec_list:
+            but=self.But(win_exec,width,height,i["width"],i["height"],i["exec"],i["text"],QIcon(i["icon"]),num)
+            max_x = max(but.width(),but.b.width())
+            if max_x+width>=180:
+                height+=but.b.height()+10
+                width=0
+            else:
+                width+=max_x-10
+            num+=1
+        WID_Todo(win_all,win_exec,"background:#00000000;border:none;",[0,195+win_battery.height(),200,300]).show()
+        Button(win_exec,[250,0,30,20],lambda:self.But.win("","","",[0,0],num),text="add").show()
+        self.minidict = {"time":time,"date":date,"combo":comb, "mode":mode}
+        for i in [time,date,comb,play,mode]:
+            i.show()
         win.show()
 
 
@@ -1465,80 +1570,6 @@ class TEXT(QtWidgets.QTextEdit):
             self.rol.valueChanged.connect(on_scroll)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-def show_battery():
-    def after():
-        label_battery.setText(f"{psutil.sensors_battery().percent}%")
-        scale_battery.setValue(psutil.sensors_battery().percent)
-        label_memory.setText(f"{psutil.virtual_memory().percent:05.2f}%")
-        scale_memory.setValue(int(psutil.virtual_memory().percent*100))
-        cpu = sum(psutil.cpu_percent(interval=0.5,percpu=True))/psutil.cpu_count(False)
-        label_cpu.setText(f"{cpu:05.2f}%")
-        scale_cpu.setValue(int(cpu*100))
-        for i in label_dict:
-            try:
-                label_dict[i][0].setText(f"{psutil.disk_usage(i).percent:05.2f}%")
-                label_dict[i][1].setValue(int(psutil.disk_usage(i).percent*100))
-            except:
-                ...
-        if len(psutil.disk_partitions()) != len(label_dict):
-            des()
-            show_battery()
-
-    def des():
-        Timer.del_func_1000(after)
-        win.destroy(True, True)
-        sip.delete(win)
-
-    win = NotitleWidget(main_window, "battery", 180, 120)
-    co2 = ",".join(map(str, colora2))
-    s = "color:%s;background:rgba("+co2+",0.4);font-family:Arial;font-size:17pt;"
-    progress_style = "QProgressBar {background: rgba("+co2+",0.4);border: none;} QProgressBar::chunk {background: %s;}"
-    Label(win,[0,0,80,27],text="Battery",style=s%color).show()
-    label_battery = Label(win,[80, 0, 100, 27],text="",style=s%color)
-    label_battery.setAlignment(align.AlignRight)
-    label_battery.show()
-    scale_battery = QtWidgets.QProgressBar(win)
-    scale_battery.setRange(0,100)
-    scale_battery.setStyleSheet(progress_style % color)
-    scale_battery.setGeometry(0,27,180,3)
-    scale_battery.show()
-    Label(win,[0,30,60,27],text="RAM",style=s%"#d18e6d").show()
-    label_memory = Label(win,[60, 30, 120, 27],text="",style=s%"#d18e6d",)
-    label_memory.setAlignment(align.AlignRight)
-    label_memory.show()
-    scale_memory = QtWidgets.QProgressBar(win)
-    scale_memory.setRange(0,10000)
-    scale_memory.setStyleSheet(progress_style % "#d18e6d")
-    scale_memory.setGeometry(0,57,180,3)
-    scale_memory.show()
-    Label(win,[0,60,60,27],text="CPU",style=s % "#ff6cd1").show()
-    label_cpu = Label(win,[60, 60, 120, 27],text="",style=s % "#ff6cd1",)
-    label_cpu.setAlignment(align.AlignRight)
-    label_cpu.show()
-    scale_cpu = QtWidgets.QProgressBar(win)
-    scale_cpu.setRange(0,10000)
-    scale_cpu.setStyleSheet(progress_style % "#ff6cd1")
-    scale_cpu.setGeometry(0,87,180,3)
-    scale_cpu.show()
-    label_dict:dict[str,list[Label,QtWidgets.QProgressBar]] = {}
-    h=90
-    for i in psutil.disk_partitions():
-        Label(win, [0, h, 60, 27], text=f"{i.device}  ", style=s % "#6ae680").show()
-        l = Label(win,[60,h,120,27],text="",style=s % "#6ae680",)
-        l.setAlignment(align.AlignRight)
-        l.show()
-        ps = QtWidgets.QProgressBar(win)
-        ps.setRange(0,10000)
-        ps.setStyleSheet(progress_style % "#6ae680")
-        ps.setGeometry(0,h+27,180,3)
-        ps.show()
-        label_dict[i.device] = [l,ps]
-        h+=30
-    after()
-    Timer.add_func_1000(after)
-    win.adjustSize()
-    win.show()
-
 
 class WriteIt(WST):
     def __init__(self, master, write2: QtWidgets.QListWidget, *geometry):
@@ -1593,17 +1624,6 @@ def double_clicked():
         d["music"][combo.currentText()]["Number"] = listbox.currentRow()
         Data.write(d)
         Music.play_list_start()
-
-
-def count():
-    if Data.count:
-        Data.count = False
-        Data.ctime = -1
-        Data.timer.stop()
-        button_count.setIcon(QtGui.QIcon(f"{path}icon\\播放.png"))
-    else:
-        Data.start()
-        button_count.setIcon(QtGui.QIcon(f"{path}\\icon\\暫停.png"))
 
 
 def show_todo():
@@ -1695,7 +1715,7 @@ def set_play_mode(_mode:Button):
     Music.mode = modes[(modes.index(Music.mode)+1)%3]
     icon=QIcon(f"{path}home\\{Music.mode}.png")
     _mode.setIcon(icon)
-    if "mini" in Page.page:
+    if "addiction" in Page.page:
         if _mode is mode:
             Page.minidict["mode"].setIcon(icon)
         else:
@@ -1749,7 +1769,7 @@ class ClickedLabel():
         self.lists.append([label,opacity,a0,0])
     def anima(self,label:Label,opacity:QtWidgets.QGraphicsOpacityEffect,a0:QtCore.QPoint,num:int, number:int):
         num+=10
-        self.lists[number][3]=num
+        self.lists[number][3] = num
         if num < 40:
             n=int(num/2)
             label.setGeometry(a0.x()-n,a0.y()-n,num,num)
@@ -1760,12 +1780,13 @@ class ClickedLabel():
             sip.delete(label)
             self.lists.pop(number)
     def exec_animation(self):
+        list(map(lambda x:self.lists.pop(self.lists.index(x)),filter(lambda x:sip.isdeleted(x[0]),self.lists)))
         list(map(lambda x:self.anima(*x,self.lists.index(x)),self.lists))
 
 
 def com(_combo:Combo):
     edit_func(_combo.currentText())
-    if "mini" in Page.page:
+    if "addiction" in Page.page:
         if _combo is combo:
             Page.minidict["combo"].setCurrentText(combo.currentText())
         else:
@@ -1821,17 +1842,16 @@ WLtime.setAlignment(align.AlignCenter)
 WLdate = Label(main_window,[0, 43, 250, 20],text=" ",style=style0 + "text-decoration:underline; font-size:15pt;",)
 Vdate.add(WLdate)
 WLdate.setAlignment(align.AlignCenter)
-volume = Button(main_window,[40, 75, 30, 30],lambda: Page.set(),image=QIcon(f"{path}icon\\set.png"),style=style0,)
-mini = Button(main_window,[180, 75, 30, 30],lambda: Page.mini(),text="⿻",style="font-family:Arial;color:#d48649;background-color: transparent;font-size:29px;",)
-g1 = NotitleWidget(main_window,"page",260,50)
-Label(g1,[2,15,6,20],style=f"background:{color2};")
-Label(g1,[0,0,260,50],style=f"background:rgba({', '.join(map(str,colora))}, 0.6);border-radius:25px;")
+g1 = NotitleWidget(main_window,"page",270,50)
+Label(g1,[2,15,6,20],style=f"background:{color2};",text=" ")
+Label(g1,[0,0,270,50],style=f"background:rgba({', '.join(map(str,colora))}, 0.6);border-radius:25px;")
+button_style=f"QPushButton {{background:{color};color:{color_bg};border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:{color_bg};background:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.4);}}"
 Button(g1,[10, 0, 50, 50],lambda: Page.todo(),image=QIcon(f"{path}icon\\todo.png"),style="background:transparent;").show()
 Button(g1,[60, 0, 50, 50],lambda: Page.dic(),image=QIcon(f"{path}icon\\dict.png"),style="background:transparent;").show()
 Button(g1,[110, 0, 50, 50],lambda: Page.learn(),image=QIcon(f"{path}icon\\learn.png"),style="background:transparent;").show()
-Button(g1,[160, 0, 50, 50],lambda: Page.clas(),image=QIcon(f"{path}icon\\class.png"),style="background:transparent;").show()
-Button(g1,[210, 0, 50, 50],lambda: Page.exe(),image=QIcon(f"{path}icon\\exec.png"),style="background:transparent;border-radius:25px;").show()
-button_style=f"QPushButton {{background:{color};color:{color_bg};border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:{color_bg};background:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.4);}}"
+Button(g1,[160, 0, 50, 50],lambda: Page.clas(),image=QIcon(f"{path}icon\\class.png"),style="background:transparent;border-radius:25px;").show()
+Button(g1,[210, 10, 30, 30],lambda: Page.set(),image=QIcon(f"{path}icon\\set.png"),style=style0,).show()
+Button(g1,[240, 10, 30, 30],lambda: Page.addiction(),text="⿻",style="font-family:Arial;color:#d48649;background-color: transparent;font-size:29px;",).show()
 Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-").show()
 Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
 Todo_Win = NotitleWidget(main_window, "todo", 250, 290)
@@ -1925,17 +1945,8 @@ listbox.setStyleSheet(f"""
 listbox.itemDoubleClicked.connect(double_clicked)
 com(combo)
 listbox.show()
-Timer_Win = NotitleWidget(main_window, "timer", 140, 55)
-style = f"background-color:rgba({colora[0]}, {colora[1]}, {colora[2]}, 0.78);font-family:Arial;font-size:24pt;font-weight:bold;color:#d48649"
-Timer_l1 = Label(Timer_Win, [0, 0, 140, 30], text=Data.show.get(), style=style)
-Timer_l1.setAlignment(align.AlignRight)
-Data.show.add(Timer_l1)
-button_count = Button(Timer_Win,[20, 30, 25, 25],count,image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;",)
-button_count.show()
-Button(Timer_Win,[80, 30, 25, 25],lambda: Data.set_win(),image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
-for i in [bg,l0,WLtime,WLdate,volume,mini,g1,Todo_Win,text_home,Song_Win,combo,song_home,slider,Timer_l1,Timer_Win,calendar,]:
+for i in [bg,l0,WLtime,WLdate,g1,Todo_Win,text_home,Song_Win,combo,song_home,slider,calendar,]:
     i.show()
-show_battery()
 clock()
 Timer.add_func_500(clock)
 sys.exit(app.exec())
