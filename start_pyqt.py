@@ -19,6 +19,7 @@ __stderr__ = open(f"{path}start_log.txt", "a")
 sys.stderr = __stderr__
 page_type = Literal["todo", "dic", "learn", "clas", "set","addiction"]
 align = Qt.AlignmentFlag
+types = Qt.WindowType
 MessageBox = QtWidgets.QMessageBox
 
 
@@ -140,7 +141,7 @@ class Label(QtWidgets.QLabel):
     def __init__(self, master, geometry: list, *, image: QPixmap, style: str): ...
     def __init__(self, master, geometry="adjust", **arg):
         super().__init__(master)
-        if "text" in arg and "style" in arg:
+        if "text" in arg:
             self.setText(arg["text"])
         elif "image" in arg:
             self.setPixmap(arg["image"])
@@ -237,6 +238,7 @@ def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0)
 
 
 class Choose(QtWidgets.QCheckBox):
+    el = ["每日循環", "一次", "已解決", "停用"]
     def __init__(self, mas, text: str, else_list: dict):
         super().__init__(mas, text=text)
         self.setStyleSheet(f"QCheckBox {{background:#dd7aff;color:{color};font-family:Arial;font-size:20pt;border-radius:10px;}}QCheckBox:disabled {{background:{'#d48649'if else_list['type'] == 0 else'#088fb7'};color:{color2};border-radius:10px;}}")
@@ -246,7 +248,6 @@ class Choose(QtWidgets.QCheckBox):
         self.No_Change = True
         self.win_count = False
         self.tag = "tag1"
-        self.el = ["每日循環", "一次", "已解決", "停用"]
         t = else_list["type"]
         if t == 0:
             self.setChecked(True)
@@ -264,8 +265,7 @@ class Choose(QtWidgets.QCheckBox):
         self.clicked.connect(lambda: self.Check())
 
     def button(self, y):
-        b1 = Button(self.parentWidget(),[self.width()+10, y, 50, 40],lambda: self.screem_choose(),text=self.Else["time"],style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;text-align:right;",)
-        b1.adjustSize()
+        b1 = Button(self.parentWidget(),[self.width(), y, 70, 20],lambda: self.screem_choose(),text=self.Else["time"],style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;text-align:right;",)
         b1.show()
         return b1
 
@@ -290,7 +290,7 @@ class Choose(QtWidgets.QCheckBox):
 
     def clock_topwin(self):
         t0 = WID(None, f"background-color:{colors['normal-bg']};", 0, 0, 300, 50)
-        t0.setWindowFlag(Qt.WindowType.SubWindow,True)
+        t0.setWindowFlag(types.SubWindow,True)
         t0.setWindowOpacity(0.48)
         t0.clockTopWin(self.left_time.get(), self.Time, self.text())
 
@@ -298,6 +298,8 @@ class Choose(QtWidgets.QCheckBox):
         h = Data.load()
         h["Todo"][self.text()]["type"] = int(self.isChecked()) + 1
         Data.write(h)
+        if calendar.selectedDate().toString("yyyy-MM-dd") == self.Else["date"]:
+            show_todo()
 
     def screem_choose(self, Type: Literal["change", "add"] = "change"):
         def rel():
@@ -343,7 +345,7 @@ class Choose(QtWidgets.QCheckBox):
             self.No_Change = False
             color_bg_0 = f"rgba({colora[0]},{colora[1]},{colora[2]},0.8)"
             ma = WID(None,f"background:{color_bg_0};",0,0,300,250)
-            ma.setWindowFlags(Qt.WindowType.SubWindow)
+            ma.setWindowFlags(types.SubWindow)
             ma.setWindowTitle(Type if Type == "add" else f"{Type}:{self.text()}")
             ma.destroyed.connect(des)
             e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
@@ -500,8 +502,8 @@ class TopWin(WID):
         self.lefttime = Valiable(target)
         self.Time = time
         self.title = title
-        self.setWindowFlag(Qt.WindowType.FramelessWindowHint,True)
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True)
+        self.setWindowFlag(types.FramelessWindowHint,True)
+        self.setWindowFlag(types.WindowStaysOnTopHint,True)
         self.setFixedSize(175, 60)
         self.show()
         l0 = Label(self,[0, 0, 175, 30],text=title,style="background:transparent;color:#dd7aff;font-family:Arial;font-size:13pt;",)
@@ -723,7 +725,7 @@ class Interaction:
 
         if not self.count:
             win = WID(None, f"background-color:{color};", 400, 400, 200, 180)
-            win.setWindowFlag(Qt.WindowType.SubWindow,True)
+            win.setWindowFlag(types.SubWindow,True)
             win.setWindowTitle("count down")
             li = list(map(str, range(0, 100)))
             style = f"font-family:Arial;font-size:15pt;background-color:{color};color:{color2};"
@@ -779,16 +781,16 @@ class Interaction:
 
 
 class Page_Organize:
-    __slots__ = ["page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","minidict","tododict","cal"]
+    __slots__ = ["page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","minidict","tododict","cal","after"]
 
     class But(QtWidgets.QPushButton):
-        def __init__(self, master, x,y,w,h, command=None,text="",image: QtGui.QIcon = None,num=0):
+        def __init__(self, master, x,y,w,h, command=None,text="",image: str = None,num=0):
             super().__init__(master)
             b = Button(master,[x,y+h,w,15],lambda:self.win(text,command,image,[w,h],num),text=text,style=f"color:{color2};background:transparent;text-align:left;")
             b.adjustSize()
             b.show()
             self.b=b
-            self.setIcon(image)
+            self.setIcon(QIcon(image))
             self.setIconSize(QtCore.QSize(w,h))
             self.setGeometry(x,y,w,h)
             self.setStyleSheet("background:transparent;")
@@ -798,19 +800,19 @@ class Page_Organize:
                 self.clicked.connect(lambda:os.popen(command))
             self.show()
         @staticmethod
-        def win(text,exec,icon,geometry,num):
+        def win(text,exec,icon:str,geometry,num):
             def submit():
                 h = Data.load()
                 width = int(entry_x.text())
                 height = int(entry_y.text())
                 if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()] and 0 not in [width,height]:
-                    if len(filter(lambda x:text==x["text"],h["exe"]))==1:
+                    if len(list(filter(lambda x:text==x["text"],h["exe"])))==1:
                         h["exe"].pop(num)
                     h["exe"].insert(entry_num.currentIndex(),{"text":entry_text.text(),"exec": entry_exec.text(),"icon": entry_icon.text(),"width":width,"height":height})
                     Data.write(h)
-                    Page.addiction()
                     window.destroy(True,True)
                     sip.delete(window)
+                    Page.addiction()
             def delete():
                 o=list(filter(lambda x:text==x["text"],h["exe"]))
                 if len(o)==1:
@@ -828,8 +830,8 @@ class Page_Organize:
                 file = QtWidgets.QFileDialog.getOpenFileName(main_window, directory=path,filter="Icon(*.ico);;Png(*.png);;Jpeg(*.jpeg,*.jpg);;All(*.*)")
                 entry_icon.setText(file[0])
 
-            window = WID(None,"",*Data.get("page")["exe"],200,150)
-            window.setWindowFlag(Qt.WindowType.SubWindow,True)
+            window = WID(None,"",300,300,200,150)
+            window.setWindowFlag(types.SubWindow,True)
             window.setWindowTitle("add" if text==exec==icon=="" else text)
             entry_text = Entry(window,"",[0,0,200,30],text)
             entry_text.show()
@@ -839,7 +841,7 @@ class Page_Organize:
             entry_icon = Entry(window,"",[0,60,150,30],icon)
             entry_icon.show()
             Button(window,[150,60,50,30],set_icon,text="set").show()
-            entry_num = Combobox(window,"",range(len(Data.get("exe"))),[0,90,100,30])
+            entry_num = Combobox(window,"",map(str,range(len(Data.get("exe")))),[0,90,100,30])
             entry_num.setCurrentIndex(num)
             entry_num.show()
             entry_x = Entry(window,"",[100,90,50,30],str(geometry[0]))
@@ -867,6 +869,8 @@ class Page_Organize:
             if page == "addiction":
                 Vtime.delete(self.minidict["time"])
                 Vdate.delete(self.minidict["date"])
+                sip.delete(self.minidict["win"])
+                Timer.func_1000.pop(self.after)
             self.destroy(page)
         self.page[page] = TopWin(parent, page, color, x, y)
         self.page[page].setAttribute(Qt.WidgetAttribute.WA_StyledBackground,True)
@@ -1366,17 +1370,24 @@ class Page_Organize:
             Music.show_duration.widget.pop()
             self.minidict={}
             self.destroy("addiction")
-        
+            sip.delete(win_all)
+
         def play_command():
             com(comb)
             music_play()
-        
+
         def move():
             if win.pos().x()==m.width()-30:
-                win.move(m.width()-230,0)
+                win.move(m.width()-230,int(m.height()//2-50))
+                win_all.move(m.width()-200,(m.height()-y)//2)
             else:
-                win.move(m.width()-30,0)
+                win.move(m.width() - 30,int(m.height()//2-50))
+                win_all.move(m.width(),(m.height()-y)//2)
         
+        def click(a0:QtGui.QMouseEvent):
+            clicked_label.add(win_all,a0.pos())
+            a0.accept()
+
         def mouse(a0):
             a0.accept()
 
@@ -1397,7 +1408,7 @@ class Page_Organize:
             if len(psutil.disk_partitions()) != len(label_dict):
                 des()
                 Page.addiction()
-        
+
         def count():
             if Data.count:
                 Data.count = False
@@ -1407,17 +1418,21 @@ class Page_Organize:
             else:
                 Data.start()
                 button_count.setIcon(QtGui.QIcon(f"{path}\\icon\\暫停.png"))
-        
-        win = self.add_win("addiction",color=color_bg,x=230,y=m.height())
+
+        win = self.add_win("addiction",x=30,y=100)
+        win.setStyleSheet(f"background:{color_bg};border:none;border-radius:50%;")
         win.mouseMoveEvent = mouse
-        win.move(m.width()-30,0)
-        win.setWindowOpacity(0.8)
-        types = Qt.WindowType
+        win.setGeometry(m.width()-30,int(m.height()//2-50),30,100)
+        win.setWindowOpacity(0.7)
         win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet)
-        win_all = WID(win,f"background:{color};",30,0,200,m.height())
-        win_all.setAttribute(Qt.WidgetAttribute.WA_StyledBackground,True)
-        Button(win,[0,int(m.height()//2-35),30,30],move,text=" ").show()
-        Button(win, [0,int(m.height()//2+35),30,30], des, text="x").show()
+        win_all = WID(None,f"background:{color};",m.width(),0,200,m.height())
+        win_all.setWindowOpacity(0.7)
+        win_all.mouseMoveEvent = mouse
+        win_all.mousePressEvent = click
+        win_all.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet)
+        win_all.show()
+        Button(win,[0,10,30,30],move,text=" ").show()
+        Button(win, [0,65,30,30], des, text="x").show()
         time = Label(win_all,[0, 0, 200, 30],text=Vtime.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:22pt;font-weight:bold;",)
         time.setAlignment(align.AlignCenter)
         Vtime.add(time)
@@ -1493,6 +1508,7 @@ class Page_Organize:
             label_dict[i.device] = [l,ps]
             h+=30
         after()
+        self.after = len(Timer.func_1000)
         Timer.add_func_1000(after)
         win_battery.adjustSize()
         win_battery.show()
@@ -1502,17 +1518,19 @@ class Page_Organize:
         height=0
         num=0
         for i in exec_list:
-            but=self.But(win_exec,width,height,i["width"],i["height"],i["exec"],i["text"],QIcon(i["icon"]),num)
+            but=self.But(win_exec,width,height,i["width"],i["height"],i["exec"],i["text"],i["icon"],num)
             max_x = max(but.width(),but.b.width())
             if max_x+width>=180:
-                height+=but.b.height()+10
+                height+=but.b.height()+but.height()
                 width=0
             else:
                 width+=max_x-10
             num+=1
-        WID_Todo(win_all,win_exec,"background:#00000000;border:none;",[0,195+win_battery.height(),200,300]).show()
-        Button(win_exec,[250,0,30,20],lambda:self.But.win("","","",[0,0],num),text="add").show()
-        self.minidict = {"time":time,"date":date,"combo":comb, "mode":mode}
+        WID_Todo(win_all,win_exec,"background:#00000000;border:none;",[0,215+win_battery.height(),200,300]).show()
+        Button(win_all,[170,195+win_battery.height(),30,20],lambda:self.But.win("","","",[0,0],num),text="add").show()
+        y=215+win_battery.height()+300
+        win_all.setGeometry(m.width(),(m.height()-y)//2,200,y)
+        self.minidict = {"time":time,"date":date,"combo":comb, "mode":mode,"win":win_all}
         for i in [time,date,comb,play,mode]:
             i.show()
         win.show()
@@ -1629,7 +1647,7 @@ def double_clicked():
 def show_todo():
     todo = Data.get("Todo")
     text = ""
-    li = list(filter(lambda x: todo[x]["date"] == calendar.selectedDate().toString("yyyy-MM-dd"),todo,))
+    li = list(filter(lambda x: todo[x]["date"] == calendar.selectedDate().toString("yyyy-MM-dd") and todo[x]["type"] in [1,3],todo,))
     if len(li) > 0:
         text = "\n".join(map(lambda x:f'{todo[x]["time"]} {x}',sorted(li,key=lambda x:todo[x]["time"])))
     else:
@@ -1651,14 +1669,14 @@ def music_play():
 
 
 def add_music():
-    if combo.currentText() in Data.get("music") and (c := QtWidgets.QInputDialog().getItem(main_window, "add", "您要加入什麼音樂?", Music.music_list, 0))[1]:
+    if combo.currentText() in Data.get("music") and (c := QtWidgets.QInputDialog.getItem(main_window, "add", "您要加入什麼音樂?", Music.music_list, 0))[1]:
         h = Data.load()
         if listbox.currentItem():
             n = listbox.currentRow()
             h["music"][combo.currentText()]["list"][n : n + 1] = [listbox.currentItem().text(),c[0],]
-        else:
-            n = len(h["music"][combo.currentText()]["Number"]) if Music.states=="stop" else Music.play_num
-            h["music"][combo.currentText()]["list"][n : n + 1] = [listbox.item(),c[0],]
+        elif listbox.count()==0:
+            n=0
+            h["music"][combo.currentText()]["list"][0] = c[0]
         Data.write(h)
         listbox.insertItem(n + 1, c[0])
 
@@ -1691,24 +1709,33 @@ def delete_list():
 
 
 def edit():
-    i = 0
-    if listbox.currentItem():
-        i = listbox.currentRow()
-        ma = QtWidgets.QInputDialog()
-        ma.setWindowTitle("edit")
-        ma.setComboBoxItems(Music.music_list)
-        ma.setCancelButtonText("add")
-        ma.setOkButtonText("delete")
-        ma.setTextValue(listbox.currentItem().text())
+    def add_func():
         h = Data.load()
-        if ma.exec()==1:
-            del h["music"][combo.currentText()]["list"][i]
-        else:
-            if ma.textValue() in Music.music_list:
-                h["music"][combo.currentText()]["list"][i] = ma.textValue()
+        if combobox.currentText() in Music.music_list:
+            h["music"][combo.currentText()]["list"][i] = combobox.currentText()
         Data.write(h)
         ma.deleteLater()
         edit_func(combo.currentText())
+    
+    def del_func():
+        h = Data.load()
+        del h["music"][combo.currentText()]["list"][i]
+        Data.write(h)
+        ma.deleteLater()
+        edit_func(combo.currentText())
+    
+    i = 0
+    if listbox.currentItem():
+        i = listbox.currentRow()
+        ma = WID(None,"",m.width()//2,m.height()//2,200,60)
+        ma.setWindowTitle("edit")
+        Label(ma,[0,0,200,60],style=f"background:{color2};").show()
+        combobox = Combobox(ma,"",Music.music_list,[0,0,200,30])
+        combobox.setCurrentText(listbox.currentItem().text())
+        combobox.show()
+        Button(ma,[0,30,40,30],add_func,text="check").show()
+        Button(ma,[40,30,40,30],del_func,text="delete").show()
+        ma.show()
 
 
 def set_play_mode(_mode:Button):
@@ -1817,9 +1844,7 @@ m = app.screens()[0].size()
 main_window = QtWidgets.QMainWindow()
 main_window.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 main_window.setWindowTitle("Start")
-main_window.setWindowFlag(Qt.WindowType.FramelessWindowHint,True)
-main_window.setWindowFlag(Qt.WindowType.WindowStaysOnBottomHint, True)
-main_window.setWindowFlag(Qt.WindowType.MaximizeUsingFullscreenGeometryHint, True)
+main_window.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnBottomHint|types.MaximizeUsingFullscreenGeometryHint)
 main_window.showMaximized()
 main_window.mousePressEvent = lambda a0:clicked_label.add(main_window,a0.pos())
 if Data.get("set")["cursor"]!="":
