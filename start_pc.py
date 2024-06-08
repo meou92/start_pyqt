@@ -1416,13 +1416,16 @@ class Page_Organize:
         win.mouseMoveEvent = mouse
         win.setGeometry(m.width()-30,int(m.height()//2-50),30,100)
         win.setWindowOpacity(0.7)
-        win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet)
+        win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool)
         win_all = WID(None,f"background:{color};",m.width(),0,200,m.height())
         win_all.setWindowOpacity(0.7)
         win_all.mouseMoveEvent = mouse
         win_all.mousePressEvent = click
-        win_all.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet)
+        win_all.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool)
         win_all.show()
+        if Data.get("set")["cursor"]!="":
+            win.setCursor(cursor)
+            win_all.setCursor(cursor)
         Button(win,[0,10,30,30],move,text=" ").show()
         Button(win, [0,65,30,30], des, text="x").show()
         time = Label(win_all,[0, 0, 200, 30],text=Vtime.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:22pt;font-weight:bold;",)
@@ -1434,22 +1437,10 @@ class Page_Organize:
         comb = Combo(win_all, "Arial", 14, 8, True, geometry=[0, 60, 200, 30])
         comb.activated.connect(lambda:com(comb))
         slider_mini = Slider(win_all, 0, 90, 200, 10)
-        slider_mini.setStyleSheet("""
-            QSlider::groove:horizontal {
-                height: 10px;border-radius: 5px;background: rgba(123,79,79,0.74);
-            }
-            QSlider::handle:horizontal {
-                background: #d18e6d;width: 10px;height: 10px;margin: 0px 0;border-radius: 5px;
-            }
-            QSlider::sub-page:horizontal {
-                border-radius: 5px;background:#ffb688;
-            }
-            QSlider {
-                background: transparent;border-radius: 5px;
-            }
-        """)
+        slider_mini.setStyleSheet(widget["Slider-1"])
         slider_mini.actionTriggered.connect(lambda:Music.slider_change(slider_mini))
         slider_mini.setRange(0,int(slider.maximum()))
+        slider_mini.show()
         Music.add_slider(slider_mini)
         l = Label(win_all,[0,100,70,15],text="00:00/00:00",style=f"color:{color_bg};")
         Music.show_duration.add(l)
