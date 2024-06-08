@@ -152,7 +152,7 @@ class Button(QtWidgets.QPushButton):
     def __init__(self, master, geometry=[], command=None, *, text="", style=""): ...
     @overload
     def __init__(
-        self, master, geometry=[], command=None, *, image: QtGui.QIcon = None, style=""
+        self, master, geometry=[], command=None, *, image: QIcon = None, style=""
     ): ...
     def __init__(self, master, geometry=[], command=None, **arg):
         """
@@ -1287,25 +1287,36 @@ class Page_Organize:
                 Data.write(h)
                 t2.setText(file)
 
-        def set_Background():
+        def set_Background_file():
             h = Data.load()
             f = "\\" if "\\" in h["set"]["Background"] else "/"
-            file = Data.filename("*.jpg",f.join(h["set"]["Background"].split(f)[:-1]))
+            file = Data.filename("JPEG(*.jpg, *.jpeg, *jpe, *.jfif);;PNG(*png)",f.join(h["set"]["Background"].split(f)[:-1]))
             if len(file) > 0:
                 h["set"]["Background"] = file
                 Data.write(h)
                 t3.setText(file)
                 img0 = Image.open(file)
                 qimg0 = ImageQt.toqimage(img0)
-                qimg1 = ImageQt.toqimage(img0.filter(ImageFilter.GaussianBlur(30)))
+                qimg1 = ImageQt.toqimage(img0.filter(ImageFilter.GaussianBlur(20)))
                 i = QPixmap(img0.width, img0.height).fromImage(qimg0)
-                i0 = (
-                    QPixmap(img0.width, img0.height)
-                    .fromImage(qimg1)
-                    .scaled(m.width(), m.height() * (i.width() // i.height()))
-                    .copy(0, 0, 250, m.height())
-                )
-                i = i.scaled(m.width(), m.height() * (i.width() // i.height()))
+                i0 = QPixmap(img0.width, img0.height).fromImage(qimg1).scaled(m.width(), m.height() * (i.width() // i.height())).copy(0, 0, 250, m.height())
+                bg.setPixmap(i)
+                l0.setPixmap(i0)
+
+        def set_Background_dir():
+            h = Data.load()
+            f = "\\" if "\\" in h["set"]["Background"] else "/"
+            file = Data.filename("dir",f.join(h["set"]["Background"].split(f)[:-1]))
+            if len(file) > 0:
+                h["set"]["Background"] = file
+                Data.write(h)
+                t3.setText(file)
+                list_bg = os.listdir(file)
+                img0 = Image.open(file+"/"+list_bg[random.randint(0,len(list_bg)-1)])
+                qimg0 = ImageQt.toqimage(img0)
+                qimg1 = ImageQt.toqimage(img0.filter(ImageFilter.GaussianBlur(20)))
+                i = QPixmap(img0.width, img0.height).fromImage(qimg0)
+                i0 = QPixmap(img0.width, img0.height).fromImage(qimg1).scaled(m.width(), m.height() * (i.width() // i.height())).copy(0, 0, 250, m.height())
                 bg.setPixmap(i)
                 l0.setPixmap(i0)
 
@@ -1347,7 +1358,9 @@ class Page_Organize:
         t1 = Entry(wid,f"background:rgba(209, 142, 109, 0.4);color:#dd7aff;font-family:Arial;font-size:12pt;",[0,240,300,30],s["DictTxt"])
         Button(wid,[0, 270, 100, 30],set_MusicDir,text="Music Dir",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",).show()
         t2 = Entry(wid,f"background:rgba(209, 142, 109, 0.4);color:#dd7aff;font-family:Arial;font-size:12pt;",[0,300,300,30],s["MusicDir"])
-        Button(wid,[0, 330, 100, 30],set_Background,text="Background",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",).show()
+        Label(wid,[0, 330, 100, 30],text="Background",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",).show()
+        Button(wid,[100, 330, 40, 30],set_Background_file,text="file").show()
+        Button(wid,[140, 330, 40, 30],set_Background_dir,text="dir").show()
         t3 = Entry(wid,f"background:rgba(209, 142, 109, 0.4);color:#dd7aff;font-family:Arial;font-size:12pt;",[0,360,300,30],s["Background"])
         for i in [m_label, c_label,m_rate_label,c_rate_label, m_scale, c_scale,m_rate_scale,c_rate_scale, t0, t1, t2, t3]:
             i.show()
@@ -1406,10 +1419,10 @@ class Page_Organize:
                 Data.count = False
                 Data.ctime = -1
                 Data.timer.stop()
-                button_count.setIcon(QtGui.QIcon(f"{path}icon\\播放.png"))
+                button_count.setIcon(QIcon(f"{path}icon\\播放.png"))
             else:
                 Data.start()
-                button_count.setIcon(QtGui.QIcon(f"{path}\\icon\\暫停.png"))
+                button_count.setIcon(QIcon(f"{path}\\icon\\暫停.png"))
 
         win = self.add_win("addiction",x=30,y=100)
         win.setStyleSheet(f"background:{color_bg};border:none;border-radius:50%;")
@@ -1830,7 +1843,13 @@ if Data.get("set")["cursor"]!="":
     pximap = pximap.scaled(30, 30)
     cursor = QtGui.QCursor(pximap,0,0)
     main_window.setCursor(cursor)
-img0 = Image.open(Data.get("set")["Background"])
+background_path:str = Data.get("set")["Background"]
+bg = ""
+if os.path.isdir(background_path) and len(list_bg := os.listdir(background_path))>0:
+    bg = background_path+"/"+list_bg[random.randint(0,len(list_bg)-1)]
+else:
+    bg = background_path
+img0 = Image.open(bg)
 qimg0 = ImageQt.toqimage(img0)
 qimg1 = ImageQt.toqimage(img0.filter(ImageFilter.GaussianBlur(20)))
 i = QPixmap(img0.width, img0.height).fromImage(qimg0)
