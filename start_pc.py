@@ -395,11 +395,11 @@ class Choose(QtWidgets.QCheckBox):
             e4.setCurrentIndex(Else["type"])
             if Type == "change":
                 Button(ma,[0, 180, 40, 30],button_choose,text="ok",).show()
-                Button(ma, [40, 180, 70, 30], delete, text="delete").show()
-                Button(ma, [110, 180, 80, 30], cancel, text="cancel").show()
+                Button(ma, [40, 180, 60, 30], delete, text="delete").show()
+                Button(ma, [100, 180, 50, 30], cancel, text="cancel").show()
             else:
                 Button(ma,[0, 180, 40, 30],button_choose,text="add",).show()
-                Button(ma, [40, 180, 70, 30], cancel, text="cancel").show()
+                Button(ma, [40, 180, 50, 30], cancel, text="cancel").show()
             b0 = Button(ma,[200,180,50, 30],lambda: self.clock_top_window(),text="1 00:00:00",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",)
             self.left_time.add(b0)
             b0.adjustSize()
@@ -1620,7 +1620,7 @@ class TEXT(QtWidgets.QTextEdit):
             self.obj = obj
             self.sc = obj.verticalScrollBar()
             self.rol = self.verticalScrollBar()
-            obj.rol.valueChanged.connect(on_roll)
+            self.sc.valueChanged.connect(on_roll)
             self.rol.valueChanged.connect(on_scroll)
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
@@ -1960,6 +1960,7 @@ text_home.setStyleSheet(
     QScrollBar::add-line:vertical {{height: 12px;width: 10px;background: transparent;subcontrol-position: bottom;}}
 """
 )
+text_home.setLineWrapMode(text_home.LineWrapMode.NoWrap)
 text_home.setReadOnly(True)
 show_todo()
 Song_Win = NoTitleWidget(main_window, "song", 250, 330)
@@ -2015,3 +2016,4 @@ for i in [bg,l0,WLtime,WLdate,g1,Todo_Win,text_home,Song_Win,combo,song_home,sli
 clock()
 Timer.add_func_500(clock)
 sys.exit(app.exec())
+
