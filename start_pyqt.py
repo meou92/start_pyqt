@@ -181,9 +181,9 @@ class Button(QtWidgets.QPushButton):
     def mousePressEvent(self,a0:QtGui.QMouseEvent):
         if self.command != None:
             self.command()
-        a0.accept()
         if not sip.isdeleted(self):
-            clicked_label.add(self.parentWidget(),a0.pos()+self.pos())
+            clicked_label.add(self.parentWidget(),a0.pos()+self.pos(),self)
+        a0.accept()
 
 
 class Combobox(QtWidgets.QComboBox):
@@ -1835,8 +1835,33 @@ class ClickedLabel():
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(lambda:self.exec_animation())
         self.timer.start(50)
-    def add(self,parent:QtWidgets.QWidget,a0:QtCore.QPoint):
+    def add(self,parent:QtWidgets.QWidget,a0:QtCore.QPoint,mousePressTarget:None|Button=None):
+        def Wid_func(a1:QtGui.QMouseEvent):
+            clicked_label.add(parent,label.pos()+a1.pos())
+            if a1.button() == Qt.MouseButton.LeftButton:
+                parent.moveFlag = True
+                parent.movePosition = a1.globalPosition().toPoint() - parent.pos()
+                parent.raise_()
+                a1.accept()
+        
+        def Text_func(a1: QtGui.QMouseEvent):
+            clicked_label.add(parent,a1.pos()+label.pos())
+            a1.accept()
+        
+        def Button_func(a1:QtGui.QMouseEvent):
+            if mousePressTarget.command != None:
+                mousePressTarget.command()
+            if not sip.isdeleted(mousePressTarget):
+                self.add(parent,label.pos()+a1.pos(),mousePressTarget)
+            a1.accept()
+        
         label = Label(parent,[a0.x(),a0.y(),0,0],image=p.scaled(0,0),style="background:transparent;")
+        if not mousePressTarget is None:
+            label.mousePressEvent = Button_func
+        elif type(parent) ==QtWidgets.QWidget:
+            label.mousePressEvent = Wid_func
+        else:
+            label.mousePressEvent = Text_func
         opacity = QtWidgets.QGraphicsOpacityEffect()
         opacity.setOpacity(1.0)
         label.setGraphicsEffect(opacity)
@@ -1936,7 +1961,7 @@ Todo_Win.setStyleSheet("background:transparent;")
 calendar = QtWidgets.QCalendarWidget(Todo_Win)
 calendar.setVerticalHeaderFormat(calendar.VerticalHeaderFormat.NoVerticalHeader)
 calendar.setHorizontalHeaderFormat(calendar.HorizontalHeaderFormat.NoHorizontalHeader)
-calendar.clicked.connect(show_todo)
+calendar.selectionChanged.connect(show_todo)
 calendar.setGeometry(0, 0, 250, 200)
 calendar.setStyleSheet(
     f"""
