@@ -17,47 +17,6 @@ types = Qt.WindowType
 MessageBox = QtWidgets.QMessageBox
 
 
-class Timers:
-    __slots__ = ["timer_1000", "timer_500", "func_1000", "func_500"]
-
-    def __init__(self):
-        self.timer_1000 = QtCore.QTimer()
-        self.timer_1000.timeout.connect(lambda: self.connect_1000())
-        self.timer_1000.start(1000)
-        self.timer_500 = QtCore.QTimer()
-        self.timer_500.timeout.connect(lambda: self.connect_500())
-        self.timer_500.start(500)
-        self.func_500 = []
-        self.func_1000 = []
-
-    def add_func_500(self, func):
-        self.func_500.append(func)
-
-    def add_func_1000(self, func):
-        self.func_1000.append(func)
-
-    def del_func_500(self, func):
-        if func in self.func_500:
-            del self.func_500[self.func_500.index(func)]
-
-    def del_func_1000(self, func):
-        if func in self.func_1000:
-            del self.func_1000[self.func_1000.index(func)]
-
-
-    def connect_500(self):
-        list(map(lambda x: x(), self.func_500))
-
-    def connect_1000(self):
-        list(map(lambda x: x(), self.func_1000))
-
-    def stop_500(self):
-        self.timer_500.stop()
-
-    def stop_1000(self):
-        self.timer_1000.stop()
-
-
 class Valuable:
     __slots__ = ["value", "widget", "type"]
 
@@ -94,11 +53,12 @@ def destroy():
     h["set"]["MusicVolume"] = Page.MusicVolume
     h["set"]["MusicRate"] = Page.MusicRate
     Data.write(h)
-    Timer.stop_1000()
-    Timer.stop_500()
+    Music.stop_list()
+    timer_1000.stop()
+    timer_500.stop()
     m = list(Page.page.keys())[0:]
     for i in m:
-        Page.destroy(i)
+        Page.destroy_page(i)
     main_window.destroy(True, True)
     sip.delete(main_window)
     sys.exit()
@@ -283,7 +243,7 @@ class Choose(QtWidgets.QCheckBox):
             else:
                 self.left_time.set(f"{times[0]} {times[1]:02d}:{times[2]:02d}:{times[3]:02d}",not sip.isdeleted(self),)
         else:
-            Timer.del_func_1000(self.Clock)
+            del_func_1000(f"Choose Clock:{id(self)}")
 
     def clock_top_window(self):
         t0 = WID(None, f"background-color:{colors['normal-bg']};", 0, 0, 300, 50)
@@ -303,10 +263,8 @@ class Choose(QtWidgets.QCheckBox):
             p = Page.cal.selectedDate()
             if calendar.selectedDate() in map(lambda x:p.addDays(x-p.dayOfWeek()+1),[0,1,2,3,4,5,6]):
                 show_todo()
-            self.left_time.widget = []
-            Timer.del_func_1000(self.Clock)
-            sip.delete(ma)
-            Page.destroy("todo")
+            cancel()
+            Page.destroy_page("todo")
             Page.todo()
             Page.cal.setSelectedDate(p)
 
@@ -318,10 +276,8 @@ class Choose(QtWidgets.QCheckBox):
             h["Todo"][e1.text()] = {"date": t1.date().toString("yyyy-MM-dd") if e != 0 else "Next","time": t1.time().toString("hh:mm:ss"),"prompt": e3.toPlainText(),"type": e,}
             Data.write(h)
             rel()
-            des()
 
         def delete():
-            global win_count
             h = Data.load()
             del h["Todo"][self.text()]
             Data.write(h)
@@ -330,13 +286,8 @@ class Choose(QtWidgets.QCheckBox):
         def cancel():
             self.No_Change = True
             self.left_time.widget = []
-            Timer.del_func_1000(self.Clock)
+            del_func_1000(f"Choose Clock:{id(self)}")
             sip.delete(ma)
-
-        def des():
-            self.left_time.widget = []
-            Timer.del_func_1000(self.Clock)
-            self.No_Change = True
 
         if self.No_Change:
             self.No_Change = False
@@ -344,7 +295,6 @@ class Choose(QtWidgets.QCheckBox):
             ma = WID(None,f"background:{color_bg_0};",0,0,300,250)
             ma.setWindowFlags(types.SubWindow)
             ma.setWindowTitle(Type if Type == "add" else f"{Type}:{self.text()}")
-            ma.destroyed.connect(des)
             e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
             t1 = QtWidgets.QDateTimeEdit(ma)
             t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:transparent;")
@@ -405,7 +355,7 @@ class Choose(QtWidgets.QCheckBox):
             b0.adjustSize()
             b0.show()
             self.Clock()
-            Timer.add_func_1000(self.Clock)
+            add_func_1000(f"Choose Clock:{id(self)}", self.Clock)
             ma.show()
 
 
@@ -468,6 +418,7 @@ class NoTitleWidget(WID):
 class TopWin(WID):
     def __init__(self, parent: QtWidgets.QWidget | None, text:page_type, color="transparent", x=0,y=0):
         super().__init__(parent, f"background-color:{color};", *Data.get("page")[text], x,y)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground,True)
         self.text = text
         self.moveFlag = False
     def mousePressEvent(self, a0):
@@ -492,7 +443,7 @@ class TopWin(WID):
         a0.accept()
 
     def clockDestroy(self):
-        Timer.del_func_1000(self.clockCount)
+        del_func_1000(f"TopWin clockCount:{id(self)}")
         sip.delete(self)
 
     def clockTopWin(self, target, time, title):
@@ -511,7 +462,7 @@ class TopWin(WID):
         l1.show()
         Button(self,[165, 0, 10, 10],lambda: self.clockDestroy(),text="x",style="background:transparent;color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
         self.clockCount()
-        Timer.add_func_1000(self.clockCount)
+        add_func_1000(f"TopWin clockCount:{id(self)}", self.clockCount)
 
     def clockCount(self):
         if self.title in Data.get("Todo"):
@@ -603,16 +554,20 @@ class MusicPlayer:
         V_play.set(1)
         self.states = "play"
         self.playlist=combo.currentText()
-        self.play_num = Data.get("music")[self.playlist]["Number"]
+        play_list = Data.get("music")[self.playlist]
+        self.play_num = play_list["Number"]
         self.media.setPlaybackRate(Page.MusicRate)
         self.audio.setVolume(Page.MusicVolume / 100)
         if self.mode != "one_infinite":
             self.play_num -= 1
-        self.play_list()
-        Timer.add_func_500(self.play_list)
+        self.play_list(play_list["Position"])
+        add_func_500(f"MusicPlayer play_list{id(self)}",self.play_list)
         self.timer.start(int(1000//Page.MusicRate))
 
-    def play_list(self):
+    def play_list(self,pos=0):
+        """
+        MusicPlayer play_list{id(self)}
+        """
         if V_play.get() == 1 and self.states == "play" and not self.media.isPlaying():
             h = Data.load()
             li = list(h["music"][self.playlist]["list"])
@@ -628,19 +583,19 @@ class MusicPlayer:
                 self.song.set(li[self.play_num])
                 self.reset_slide(MP3(song).info.length)
                 self.media.setSource(QtCore.QUrl.fromLocalFile(song))
-                self.media.setPosition(0)
+                self.media.setPosition(pos)
                 self.media.play()
             self.play_already+=int(self.play_already < 2)
 
     def pause_list(self):
-        Timer.del_func_500(self.play_list)
+        del_func_500(f"MusicPlayer play_list{id(self)}")
         self.timer.stop()
         self.change_button()
         self.states = "pause"
         self.media.pause()
 
     def unpause_list(self):
-        Timer.add_func_500(self.play_list)
+        add_func_500(f"MusicPlayer play_list{id(self)}",self.play_list)
         self.timer.start(int(1000//Page.MusicRate))
         self.change_button("暫停")
         self.states = "play"
@@ -648,10 +603,13 @@ class MusicPlayer:
 
     def stop_list(self):
         if self.states != "stop":
+            h = Data.load()
+            h["music"][self.playlist]["Position"] = self.media.position()
+            Data.write(h)
             V_play.set(0)
             self.states = "stop"
             self.play_already=2
-            Timer.del_func_500(self.play_list)
+            del_func_500(f"MusicPlayer play_list{id(self)}")
             self.timer.stop()
             self.reset_slide()
             self.change_button()
@@ -714,7 +672,7 @@ class Interaction:
 
     def set_win(self):
 
-        def destroy():
+        def destroy_win():
             hour, minute, second = list(map(lambda x: int(x.currentText()), [e0, e1, e2]))
             self.show.set(f"{hour:02d}:{minute:02d}:{second:02d}")
             self.time = hour * 3600 + minute * 60 + second
@@ -739,7 +697,7 @@ class Interaction:
             e2 = Combobox(win, style, li[:60], [70, 100, 100, 50])
             e2.setCurrentIndex(int(s[2]))
             e2.show()
-            Button(win, [0, 150, 60, 30], destroy, text="確認", style=style).show()
+            Button(win, [0, 150, 60, 30], destroy_win, text="確認", style=style).show()
             win.show()
 
     def start(self):
@@ -783,7 +741,7 @@ class Page_Organize:
     class But(QtWidgets.QPushButton):
         def __init__(self, master, x,y,w,h, command=None,text="",image: str = None,num=0):
             super().__init__(master)
-            b = Button(master,[x,y+h,w,15],lambda:self.win(text,command,image,[w,h],num),text=text,style=f"color:{color2};background:transparent;text-align:left;")
+            b = Button(master,[x,y+h,w,15],lambda:self.win(text,command,image,str(w),str(h),num),text=text,style=f"color:{color2};background:transparent;text-align:left;")
             b.adjustSize()
             b.show()
             self.b=b
@@ -796,8 +754,7 @@ class Page_Organize:
             elif type(command) == str:
                 self.clicked.connect(lambda:os.popen(command))
             self.show()
-        @staticmethod
-        def win(text,exec,icon:str,geometry,num):
+        def win(self,text:str,exec:str,icon:str,w:str,h:str,num:int):
             def submit():
                 h = Data.load()
                 width = int(entry_x.text())
@@ -809,6 +766,7 @@ class Page_Organize:
                     Data.write(h)
                     window.destroy(True,True)
                     sip.delete(window)
+                    Page.destroy_page("addiction")
                     Page.addiction()
             def delete():
                 o=list(filter(lambda x:text==x["text"],h["exe"]))
@@ -819,6 +777,7 @@ class Page_Organize:
                     Page.addiction()
                 window.destroy(True,True)
                 sip.delete(window)
+                Page.addiction()
 
             def set_exec():
                 file = QtWidgets.QFileDialog.getOpenFileName(main_window, directory=path,filter="Exec(*.exe)")
@@ -835,16 +794,16 @@ class Page_Organize:
             entry_text.show()
             entry_exec = Entry(window,"",[0,30,150,30],exec)
             entry_exec.show()
-            Button(window,[150,30,50,30],set_exec,text="set").show()
+            Button(window,[150,30,50,30],set_exec,text="exe").show()
             entry_icon = Entry(window,"",[0,60,150,30],icon)
             entry_icon.show()
-            Button(window,[150,60,50,30],set_icon,text="set").show()
+            Button(window,[150,60,50,30],set_icon,text="icon").show()
             entry_num = Combobox(window,"",map(str,range(len(Data.get("exe")))),[0,90,100,30])
             entry_num.setCurrentIndex(num)
             entry_num.show()
-            entry_x = Entry(window,"",[100,90,50,30],str(geometry[0]))
+            entry_x = Entry(window,"",[100,90,50,30],w)
             entry_x.show()
-            entry_y = Entry(window,"",[150,90,50,30],str(geometry[1]))
+            entry_y = Entry(window,"",[150,90,50,30],h)
             entry_y.show()
             Button(window,[0,120,50,30],submit,text="submit").show()
             Button(window,[50,120,50,30],delete,text="delete").show()
@@ -859,7 +818,8 @@ class Page_Organize:
                 if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()] and 0 not in [width,height]:
                     h["exe"].insert(entry_num.currentIndex(),{"text":entry_text.text(),"exec": entry_exec.text(),"icon": entry_icon.text(),"width":width,"height":height})
                     Data.write(h)
-                    window.deleteLater()
+                    sip.delete(window)
+                    Page.destroy_page("addiction")
                     Page.addiction()
 
             def set_exec():
@@ -881,7 +841,7 @@ class Page_Organize:
             entry_icon = Entry(window,"",[0,60,150,30])
             entry_icon.show()
             Button(window,[150,60,50,30],set_icon,text="set").show()
-            entry_num = Combobox(window,"",map(str,range(len(Data.get("exe")))),[0,90,100,30])
+            entry_num = Combobox(window,"",map(str,range(len(Data.get("exe"))+1)),[0,90,100,30])
             entry_num.show()
             entry_x = Entry(window,"",[100,90,50,30],"0")
             entry_x.show()
@@ -900,24 +860,27 @@ class Page_Organize:
         self.MusicVolume = s["MusicVolume"]
         self.ClockRate = s["ClockRate"]
         self.MusicRate = s["MusicRate"]
-        self.mini_dict={}
+        self.mini_dict:dict[Literal["time","date","combo","mode","win","timer"],Label|Button|Combo]={}
         self.cal = None
 
     def add_win(self,page: page_type,parent: QtWidgets.QMainWindow | None = None,color="transparent",x=0,y=0,):
         if page in self.page:
-            if page == "addiction":
-                V_time.delete(self.mini_dict["time"])
-                V_date.delete(self.mini_dict["date"])
-                sip.delete(self.mini_dict["win"])
-                Timer.func_1000.pop(self.after)
-            self.destroy(page)
+            self.destroy_page(page)
         self.page[page] = TopWin(parent, page, color, x, y)
-        self.page[page].setAttribute(Qt.WidgetAttribute.WA_StyledBackground,True)
         return self.page[page]
 
-    def destroy(self, page: page_type):
+    def destroy_page(self, page: page_type):
         if page in self.page:
             sip.delete(self.page.pop(page))
+            if page == "addiction":
+                del_func_1000(f"Page_Organize addiction after:{id(self)}")
+                V_time.delete(self.mini_dict["time"])
+                V_date.delete(self.mini_dict["date"])
+                Data.show.delete(self.mini_dict["timer"])
+                Music.slider.pop()
+                Music.show_duration.widget.pop()
+                sip.delete(self.mini_dict["win"])
+                self.mini_dict={}
 
     def todo(self):
         def clicked():
@@ -1039,7 +1002,7 @@ class Page_Organize:
         Button(win,[540,175,25,25],last,image=QIcon(f"{path}home\\last.png"),style=f"background:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);",).show()
         Button(win,[565,175,25,25],next,image=QIcon(f"{path}home\\next.png"),style=f"background:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);",).show()
         clicked()
-        Button(win,[655, 0, 25, 20],lambda: self.destroy("todo"),text="x").show()
+        Button(win,[655, 0, 25, 20],lambda: self.destroy_page("todo"),text="x").show()
         win.show()
 
     def dic(self):
@@ -1104,7 +1067,7 @@ class Page_Organize:
         write1.put.add(l0)
         for fa in [write1, write2, entry, but2, but3, but4, l0]:
             fa.show()
-        Button(win,[580, 0, 20, 15],lambda: self.destroy("dic"),text="x").show()
+        Button(win,[580, 0, 20, 15],lambda: self.destroy_page("dic"),text="x").show()
         win.show()
         write1.clean()
 
@@ -1253,7 +1216,7 @@ class Page_Organize:
         Button(button_frame, [100, 30, 50, 30], save, text="save", style=style).show()
         Button(button_frame, [150, 30, 40, 30], ADD, text="Add", style=style).show()
         Button(button_frame,[190, 30, 70, 30],DELETE,text="Delete",style=style,).show()
-        Button(win,[580, 0, 20, 20],lambda: self.destroy("learn"),text="x").show()
+        Button(win,[580, 0, 20, 20],lambda: self.destroy_page("learn"),text="x").show()
         win.show()
 
     def classes(self):
@@ -1267,7 +1230,7 @@ class Page_Organize:
             Label(win,[fa * 90, 0, 90, 30],text=f"  {i3}  ",style=f"background-color:{c};color:#fc8289;font-family:Arial;font-size:16pt;font-weight:bold;",).show()
             for fi in range(length):
                 Label(win,[fa * 90, (fi + 1) * 30, 90, 30],text=i1[i3][fi],style=f"background-color:{c};color:{color2};font-family:Arial;font-size:16pt;font-weight:bold;",).show()
-        Button(win,[width * 90 - 20, 0, 20, 20],lambda: self.destroy("class"),text="x").show()
+        Button(win,[width * 90 - 20, 0, 20, 20],lambda: self.destroy_page("class"),text="x").show()
         win.show()
 
     def set(self):
@@ -1335,7 +1298,7 @@ class Page_Organize:
         def set_Background_file():
             h = Data.load()
             f = "\\" if "\\" in h["set"]["Background"] else "/"
-            file = Data.filename("JPEG(*.jpg, *.jpeg, *jpe, *.jfif);;PNG(*png)",f.join(h["set"]["Background"].split(f)[:-1]))
+            file = Data.filename("JPEG (*.jpg *.jpeg *jpe *.jfif);;PNG (*png);;All (*.*)",f.join(h["set"]["Background"].split(f)[:-1]))
             if len(file) > 0:
                 h["set"]["Background"] = file
                 Data.write(h)
@@ -1409,20 +1372,10 @@ class Page_Organize:
         t3 = Entry(wid,f"background:rgba(209, 142, 109, 0.4);color:#dd7aff;font-family:Arial;font-size:12pt;",[0,360,300,30],s["Background"])
         for i in [m_label, c_label,m_rate_label,c_rate_label, m_scale, c_scale,m_rate_scale,c_rate_scale, t0, t1, t2, t3]:
             i.show()
-        Button(win,[300, 0, 20, 15],lambda: self.destroy("set"),text="x").show()
+        Button(win,[300, 0, 20, 15],lambda: self.destroy_page("set"),text="x").show()
         win.show()
 
     def addiction(self):
-        def des():
-            Timer.del_func_1000(after)
-            V_time.delete(time)
-            V_date.delete(date)
-            Data.show.delete(Timer_l1)
-            Music.slider.pop()
-            Music.show_duration.widget.pop()
-            self.mini_dict={}
-            self.destroy("addiction")
-            sip.delete(win_all)
 
         def play_command():
             com(comb)
@@ -1435,7 +1388,7 @@ class Page_Organize:
             else:
                 win.move(m.width() - 30,int(m.height()//2-50))
                 win_all.move(m.width(),(m.height()-y)//2)
-        
+
         def click(a0:QtGui.QMouseEvent):
             clicked_label.add(win_all,a0.pos())
             a0.accept()
@@ -1444,6 +1397,7 @@ class Page_Organize:
             a0.accept()
 
         def after():
+            """Page_Organize addiction after:{id(self)}"""
             label_memory.setText(f"{psutil.virtual_memory().percent:05.2f}%")
             scale_memory.setValue(int(psutil.virtual_memory().percent*100))
             cpu = sum(psutil.cpu_percent(interval=0.5,percpu=True))/psutil.cpu_count(False)
@@ -1456,7 +1410,7 @@ class Page_Organize:
                 except:
                     ...
             if len(psutil.disk_partitions()) != len(label_dict):
-                des()
+                self.destroy_page("addiction")
                 Page.addiction()
 
         def count():
@@ -1472,10 +1426,10 @@ class Page_Organize:
         win = self.add_win("addiction",x=30,y=100)
         win.setStyleSheet(f"background:{color_bg};border:none;border-radius:50%;")
         win.mouseMoveEvent = mouse
-        win.setGeometry(m.width()-30,int(m.height()//2-50),30,100)
+        win.setGeometry(m.width()-230,int(m.height()//2-50),30,100)
         win.setWindowOpacity(0.7)
         win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool|types.SubWindow)
-        win_all = WID(None,f"background:{color};",m.width(),0,200,m.height())
+        win_all = WID(None,f"background:{color};",m.width()-200,0,200,m.height())
         win_all.setWindowOpacity(0.7)
         win_all.mouseMoveEvent = mouse
         win_all.mousePressEvent = click
@@ -1485,7 +1439,7 @@ class Page_Organize:
             win.setCursor(cursor)
             win_all.setCursor(cursor)
         Button(win,[0,10,30,30],move,text=" ").show()
-        Button(win, [0,65,30,30], des, text="x").show()
+        Button(win, [0,65,30,30], lambda:self.destroy_page("addiction"), text="x").show()
         time = Label(win_all,[0, 0, 200, 30],text=V_time.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:22pt;font-weight:bold;",)
         time.setAlignment(align.AlignCenter)
         V_time.add(time)
@@ -1544,8 +1498,8 @@ class Page_Organize:
             label_dict[i.device] = [l,ps]
             h+=30
         after()
-        self.after = len(Timer.func_1000)
-        Timer.add_func_1000(after)
+        self.after = len(func_1000)
+        add_func_1000(f"Page_Organize addiction after:{id(self)}",after)
         win_battery.adjustSize()
         win_battery.show()
         exec_list:list = Data.get("exe")
@@ -1565,8 +1519,8 @@ class Page_Organize:
         WID_Todo(win_all,win_exec,"background:#00000000;border:none;",[0,215+win_battery.height(),200,300]).show()
         Button(win_all,[170,195+win_battery.height(),30,20],lambda:self.But.add(),text="add").show()
         y=215+win_battery.height()+300
-        win_all.setGeometry(m.width(),(m.height()-y)//2,200,y)
-        self.mini_dict = {"time":time,"date":date,"combo":comb, "mode":mode,"win":win_all}
+        win_all.setGeometry(m.width()-200,(m.height()-y)//2,200,y)
+        self.mini_dict = {"time":time,"date":date,"combo":comb, "mode":mode,"win":win_all, "timer":Timer_l1}
         for i in [time,date,comb,play,mode]:
             i.show()
         win.show()
@@ -1881,12 +1835,43 @@ def com(_combo:Combo):
             combo.setCurrentText(_combo.currentText())
 
 
+def add_func_500(key: str, func):
+    global func_500
+    func_500.update({key:func})
+
+def add_func_1000(key:str, func):
+    global func_1000
+    func_1000.update({key:func})
+
+def del_func_500(key):
+    global func_500
+    if key in func_500:
+        del func_500[key]
+
+def del_func_1000(key):
+    global func_1000
+    if key in func_1000:
+        del func_1000[key]
+
+def connect_500():
+    list(map(lambda x: x(), list(func_500.values())))
+
+def connect_1000():
+    list(map(lambda x: x(), list(func_1000.values())))
+
 modes=["all_once","all_infinite","one_infinite"]
 app = QtWidgets.QApplication(sys.argv)
 app.setWindowIcon(QIcon(r".\init_file\music.ico"))
 Data = Interaction(path + "homework.json")
 Page = Page_Organize()
-Timer = Timers()
+func_500 = {}
+func_1000 = {}
+timer_1000 = QtCore.QTimer()
+timer_1000.timeout.connect(connect_1000)
+timer_1000.start(1000)
+timer_500 = QtCore.QTimer()
+timer_500.timeout.connect(connect_500)
+timer_500.start(500)
 clicked_label = ClickedLabel()
 Music = MusicPlayer()
 V_date = Valuable("")
@@ -2039,6 +2024,5 @@ listbox.show()
 for i in [bg,l0,WLtime,WLdate,g1,Todo_Win,text_home,Song_Win,combo,song_home,slider,calendar,]:
     i.show()
 clock()
-Timer.add_func_500(clock)
+add_func_500("clock",clock)
 sys.exit(app.exec())
-
