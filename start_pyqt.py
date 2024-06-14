@@ -7,9 +7,10 @@ from PyQt6 import QtWidgets,QtCore, QtGui, sip
 from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from windows_toasts import WindowsToaster,Toast
 from mutagen.mp3 import MP3
 import sys, psutil, json, os, random,webbrowser
-from typing import overload, Literal
+from typing import Literal
 from datetime import datetime,timedelta
 from PIL import Image, ImageFilter, ImageQt
 
@@ -81,8 +82,8 @@ def clock():
     ds = di.strftime("%Y-%m-%d %H:%M:%S")
     V_date.set(di.strftime("%a  %b  %d    %Y"))
     V_time.set(di.strftime("%H:%M:%S"))
-    if time_dict := list(filter(time_dict, ans)):
-        todo = time_dict[0]
+    if time_dicts := list(filter(time_dict, ans)):
+        todo = time_dicts[0]
         ti = ans[todo]["prompt"].split("\n")
         if Music.media.isPlaying():
             if Music.playlist:
@@ -90,25 +91,20 @@ def clock():
             else:
                 Music.stop()
         Music.play(Data.get("set")["ClockMusic"])
-        MessageBox.information(main_window, "today's homework!!!", f"--{todo}--\n" + "\n".join(ti[:3] if len(ti) > 4 else ti))
+        Data.notifier(todo, ti[:3] if len(ti) > 4 else ti)
     elif V_play.get() == -1 and not Music.media.isPlaying():
         V_play.set(0)
 
 
 class Label(QtWidgets.QLabel):
-    @overload
-    def __init__(self, master, geometry: str | list, *, text: str, style: str): ...
-
-    @overload
-    def __init__(self, master, geometry: list, *, image: QPixmap, style: str): ...
-    def __init__(self, master, geometry="adjust", **arg):
+    def __init__(self, master, geometry, text:str|None=None, image: QPixmap|None=None,style: str|None=None):
         super().__init__(master)
-        if "text" in arg:
-            self.setText(arg["text"])
-        elif "image" in arg:
-            self.setPixmap(arg["image"])
-        if "style" in arg:
-            self.setStyleSheet(arg["style"])
+        if text!=None:
+            self.setText(text)
+        elif image!=None:
+            self.setPixmap(image)
+        if style != None:
+            self.setStyleSheet(style)
         if geometry == "adjust":
             self.adjustSize()
         else:
@@ -116,26 +112,17 @@ class Label(QtWidgets.QLabel):
 
 
 class Button(QtWidgets.QPushButton):
-    @overload
-    def __init__(self, master, geometry=[], command=None, *, text="", style=""): ...
-    @overload
-    def __init__(
-        self, master, geometry=[], command=None, *, image: QIcon = None, style=""
-    ): ...
-    def __init__(self, master, geometry=[], command=None, **arg):
+    def __init__(self, master, geometry=[], command=None, text:str|None=None, image: QIcon|None=None, style:str|None=None):
         """
         ::geometry: x, y, w, h
         """
         super().__init__(master)
-        if "text" in arg:
-            self.setText(arg["text"])
-        if "image" in arg:
+        if text!=None:
+            self.setText(text)
+        elif image!=None:
             self.setIconSize(QtCore.QSize(*geometry[2:]))
-            self.setIcon(arg["image"])
-        if "style" in arg:
-            self.setStyleSheet(arg["style"])
-        else:
-            self.setStyleSheet(button_style)
+            self.setIcon(image)
+        self.setStyleSheet(style if style != None else button_style)
         self.command=command
         self.setGeometry(*geometry)
     def mousePressEvent(self,a0:QtGui.QMouseEvent):
@@ -202,7 +189,7 @@ def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0)
 class Choose(QtWidgets.QCheckBox):
     el = ["每日循環", "一次", "已解決", "停用"]
     def __init__(self, mas, text: str, else_list: dict):
-        super().__init__(mas, text=text)
+        super().__init__(text,mas)
         self.setStyleSheet(f"QCheckBox {{background:#dd7aff;color:{color};font-family:Arial;font-size:20pt;border-radius:10px;}}QCheckBox:disabled {{background:{'#d48649'if else_list['type'] == 0 else'#088fb7'};color:{color2};border-radius:10px;}}")
         self.num_list = list(map(str, range(0, 60)))
         self.left_time = Valuable("")
@@ -654,6 +641,12 @@ class Interaction:
     def AskStr(self, prompt: str):
         return QtWidgets.QInputDialog.getText(main_window, "today's homework!!!", prompt)
 
+    def notifier(self,title:str,message:list[str]):
+        toaster = WindowsToaster(Data.get("set")["title"])
+        toast = Toast()
+        toast.text_fields = [title]+message
+        toaster.show_toast(toast)
+
     def load(self):
         return self.tem_dic
 
@@ -741,7 +734,7 @@ class Interaction:
 
 
 class Page_Organize:
-    __slots__ = ["page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","mini_dict","todo_dict","cal","after"]
+    __slots__ = ["page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","mini_dict","todo_dict","cal"]
 
     class But(QtWidgets.QPushButton):
         def __init__(self, master, x,y,w,h, command=None,text="",image: str = None,num=0):
@@ -842,10 +835,10 @@ class Page_Organize:
             entry_text.show()
             entry_exec = Entry(window,"",[0,30,150,30])
             entry_exec.show()
-            Button(window,[150,30,50,30],set_exec,text="set").show()
+            Button(window,[150,30,50,30],set_exec,text="exec").show()
             entry_icon = Entry(window,"",[0,60,150,30])
             entry_icon.show()
-            Button(window,[150,60,50,30],set_icon,text="set").show()
+            Button(window,[150,60,50,30],set_icon,text="icon").show()
             entry_num = Combobox(window,"",map(str,range(len(Data.get("exe"))+1)),[0,90,100,30])
             entry_num.show()
             entry_x = Entry(window,"",[100,90,50,30],"0")
@@ -1233,8 +1226,7 @@ class Page_Organize:
         for fa in range(width):
             i3 = list(i1.keys())[2:][fa]
             Label(win,[fa * 90, 0, 90, 30],text=f"  {i3}  ",style=f"background-color:{c};color:#fc8289;font-family:Arial;font-size:16pt;font-weight:bold;",).show()
-            for fi in range(length):
-                Label(win,[fa * 90, (fi + 1) * 30, 90, 30],text=i1[i3][fi],style=f"background-color:{c};color:{color2};font-family:Arial;font-size:16pt;font-weight:bold;",).show()
+            list(map(lambda fi:Label(win,[fa * 90, (fi + 1) * 30, 90, 30],text=i1[i3][fi],style=f"background-color:{c};color:{color2};font-family:Arial;font-size:16pt;font-weight:bold;",).show(),range(length)))
         Button(win,[width * 90 - 20, 0, 20, 20],lambda: self.destroy_page("class"),text="x").show()
         win.show()
 
@@ -1410,15 +1402,14 @@ class Page_Organize:
             cpu = sum(psutil.cpu_percent(interval=0.5,percpu=True))/psutil.cpu_count(False)
             label_cpu.setText(f"{cpu:05.2f}%")
             scale_cpu.setValue(int(cpu*100))
-            for i in label_dict:
-                try:
-                    label_dict[i][0].setText(f"{psutil.disk_usage(i).percent:05.2f}%")
-                    label_dict[i][1].setValue(int(psutil.disk_usage(i).percent*100))
-                except:
-                    ...
             if len(psutil.disk_partitions()) != len(label_dict):
                 self.destroy_page("addiction")
                 Page.addiction()
+            else:
+                for i,a, in label_dict.items():
+                    usage = psutil.disk_usage(i).percent
+                    a[0].setText(f"{usage:05.2f}%")
+                    a[1].setValue(int(usage*100))
 
         def count():
             if Data.count:
@@ -1499,10 +1490,10 @@ class Page_Organize:
         label_cpu.setAlignment(align.AlignRight)
         label_cpu.show()
         scale_cpu = progressbar(win_battery,0,10000,progress_style % "#ff6cd1",87)
-        label_dict:dict[str,list[Label,QtWidgets.QProgressBar]] = {}
+        label_dict:dict[str,list[Label|QtWidgets.QProgressBar]] = {}
         h=90
         for i in psutil.disk_partitions():
-            Label(win_battery, [0, h, 60, 27], text=f"{i.device}  ", style=s % "#6ae680").show()
+            Label(win_battery, [0, h, 60, 27], text=f"{i.device}", style=s % "#6ae680").show()
             l = Label(win_battery,[60,h,120,27],text="",style=s % "#6ae680",)
             l.setAlignment(align.AlignRight)
             l.show()
@@ -1510,7 +1501,6 @@ class Page_Organize:
             label_dict[i.device] = [l,ps]
             h+=30
         after()
-        self.after = len(func_1000)
         add_func_1000(f"Page_Organize addiction after:{id(self)}",after)
         win_battery.adjustSize()
         win_battery.show()
@@ -1871,10 +1861,17 @@ def connect_500():
 def connect_1000():
     list(map(lambda x: x(), list(func_1000.values())))
 
+def main_window_clicked(a0: QtGui.QMouseEvent):
+    clicked_label.add(main_window,a0.pos())
+    main_window.setFocus()
+    a0.accept()
+
 modes=["all_once","all_infinite","one_infinite"]
-app = QtWidgets.QApplication(sys.argv)
-app.setWindowIcon(QIcon(r".\init_file\music.ico"))
 Data = Interaction(path + "homework.json")
+app = QtWidgets.QApplication(sys.argv)
+data_set = Data.get("set")
+app.setApplicationName(data_set["title"])
+app.setWindowIcon(QIcon(r".\init_file\music.ico"))
 Page = Page_Organize()
 func_500 = {}
 func_1000 = {}
@@ -1889,7 +1886,7 @@ Music = MusicPlayer()
 V_date = Valuable("")
 V_time = Valuable("")
 V_play = Valuable()
-V_state = Valuable(bool(Data.get("set")["dark"]))
+V_state = Valuable(bool(data_set["dark"]))
 p = QPixmap(f"{path}clicked.png")
 widget = Data.get("style")[int(V_state.get())]
 colors = Data.get("color")[int(V_state.get())]
@@ -1901,16 +1898,16 @@ color_bg = colors["bg"]
 m = app.screens()[0].size()
 main_window = QtWidgets.QMainWindow()
 main_window.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-main_window.setWindowTitle("Start")
+main_window.setWindowTitle(data_set["title"])
 main_window.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnBottomHint|types.MaximizeUsingFullscreenGeometryHint)
 main_window.showMaximized()
-main_window.mousePressEvent = lambda a0:clicked_label.add(main_window,a0.pos())
-if Data.get("set")["cursor"]!="":
-    pixmap = QPixmap(Data.get("set")["cursor"])
+main_window.mousePressEvent = main_window_clicked
+if data_set["cursor"]!="":
+    pixmap = QPixmap(data_set["cursor"])
     pixmap = pixmap.scaled(30, 30)
     cursor = QtGui.QCursor(pixmap,0,0)
     main_window.setCursor(cursor)
-background_path:str = Data.get("set")["Background"]
+background_path:str = data_set["Background"]
 bg_path = background_path
 if os.path.isdir(background_path) and len(list_bg := os.listdir(background_path))>0:
     bg_path +="/"+list_bg[random.randint(0,len(list_bg)-1)]
@@ -2036,5 +2033,5 @@ listbox.show()
 for i in [bg,l0,WLtime,WLdate,g1,Todo_Win,text_home,Song_Win,combo,song_home,slider,calendar,]:
     i.show()
 clock()
-add_func_500("clock",clock)
+add_func_1000("clock",clock)
 sys.exit(app.exec())
