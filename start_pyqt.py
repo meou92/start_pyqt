@@ -71,27 +71,21 @@ def destroy():
 
 
 def clock():
-    def time_dict(x):
-        if ans[x]["date"] == "Next":
-            return V_time.get() == ans[x]["time"] and ans[x]["type"]<2
-        else:
-            return f"{ans[x]['date']} {ans[x]['time']}" == ds and ans[x]["type"]<2
-
     ans = Data.get("Todo")
     di = datetime.now()
     ds = di.strftime("%Y-%m-%d %H:%M:%S")
     V_date.set(di.strftime("%a  %b  %d    %Y"))
     V_time.set(di.strftime("%H:%M:%S"))
-    if time_dicts := list(filter(time_dict, ans)):
-        todo = time_dicts[0]
-        ti = ans[todo]["prompt"].split("\n")
+    if time_dicts := list(filter(lambda x: (V_time.get() == ans[x]["time"] and ans[x]["type"]<2) if ans[x]["date"] == "Next"  else (f"{ans[x]['date']} {ans[x]['time']}" == ds and ans[x]["type"]<2), ans)):
+        for todo in time_dicts:
+            ti = ans[todo]["prompt"].split("\n")
+            Data.notifier(todo, ti[:3] if len(ti) > 4 else ti)
         if Music.media.isPlaying():
             if Music.playlist:
                 Music.stop_list()
             else:
                 Music.stop()
         Music.play(Data.get("set")["ClockMusic"])
-        Data.notifier(todo, ti[:3] if len(ti) > 4 else ti)
     elif V_play.get() == -1 and not Music.media.isPlaying():
         V_play.set(0)
 
@@ -284,7 +278,7 @@ class Choose(QtWidgets.QCheckBox):
         if self.No_Change:
             self.No_Change = False
             color_bg_0 = f"rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.8)"
-            ma = WID(None,f"background:{color_bg_0};",0,0,300,250)
+            ma = WID(None,f"background:{color_bg_0};",*Data.get("page")["todo"],300,250)
             ma.setWindowFlags(types.SubWindow)
             ma.setWindowTitle(Type if Type == "add" else f"{Type}:{self.text()}")
             e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
@@ -382,7 +376,7 @@ class WID_Todo(QtWidgets.QScrollArea):
 
 
 class NoTitleWidget(WID):
-    def __init__(self, parent, text:Literal["page","todo","song","timer","battery"], *geometry):
+    def __init__(self, parent, text:Literal["page","todo","song"], *geometry):
         super().__init__(parent,"",*Data.get("window")[text],*geometry[:2])
         self.text = text
         self.moveFlag = False
