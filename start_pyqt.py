@@ -1416,26 +1416,26 @@ class Page_Organize:
                 button_count.setIcon(QIcon(f"{path}\\icon\\暫停.png"))
 
         win = self.add_win("addiction",x=30,y=100)
-        win.setStyleSheet(f"background:{color_bg};border:none;border-radius:50%;")
+        win.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         win.mouseMoveEvent = mouse
         win.setGeometry(m.width()-230,int(m.height()//2-50),30,100)
         win.setWindowOpacity(0.7)
         win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool|types.SubWindow)
-        win_all = WID(None,f"background:{color};",m.width()-200,0,200,m.height())
+        win_all = WID(None,"",m.width()-200,0,200,m.height())
+        win_all.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         win_all.setWindowOpacity(0.7)
         win_all.mouseMoveEvent = mouse
         win_all.mousePressEvent = click
         win_all.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool|types.SubWindow)
         win_all.show()
-        if Data.get("set")["cursor"]!="":
-            win.setCursor(cursor)
-            win_all.setCursor(cursor)
+        win_all_label = Label(win_all, [0, 0, 200, m.height()], "", style=f"background-color:{color};border:none;border-top-left-radius:15px;border-bottom-left-radius:15px;")
+        Label(win, [0, 0, 30, 100], "", style=f"background-color:{color_bg};border:none;border-top-left-radius:15px;border-bottom-left-radius:15px;").show()
         Button(win,[0,10,30,30],move,text=" ").show()
-        Button(win, [0,65,30,30], lambda:self.destroy_page("addiction"), text="x").show()
-        time = Label(win_all,[0, 0, 200, 30],text=V_time.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:22pt;font-weight:bold;",)
+        Button(win, [0,60,30,30], lambda:self.destroy_page("addiction"), text="x").show()
+        time = Label(win_all,[0, 0, 200, 30],text=V_time.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:28pt;font-weight:bold;",)
         time.setAlignment(align.AlignCenter)
         V_time.add(time)
-        date = Label(win_all,[0, 30, 200, 30],text=V_date.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial;font-size:12pt;font-weight:bold;",)
+        date = Label(win_all,[0, 30, 200, 30],text=V_date.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial;font-size:14pt;font-weight:bold;",)
         date.setAlignment(align.AlignCenter)
         V_date.add(date)
         comb = Combo(win_all, "Arial", 14, 8, True, geometry=[0, 60, 200, 30])
@@ -1516,6 +1516,8 @@ class Page_Organize:
         Button(win_all,[170,195+win_battery.height(),30,20],lambda:self.But.add(),text="add").show()
         y=215+win_battery.height()+300
         win_all.setGeometry(m.width()-200,(m.height()-y)//2,200,y)
+        win_all_label.setGeometry(0,0,200,y)
+        win_all_label.show()
         self.mini_dict = {"time":time,"date":date,"combo":comb, "mode":mode,"win":win_all, "timer":Timer_l1}
         for i in [time,date,comb,play,mode]:
             i.show()
