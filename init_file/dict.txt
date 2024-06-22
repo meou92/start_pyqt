@@ -1741,7 +1741,6 @@ tissue paper:面紙
 To top it all off:最糟糕的是
 toast:土司
 toss:折騰
-tough:強硬
 tourist:遊客
 traditional:傳統
 traffic:交通

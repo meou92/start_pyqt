@@ -97,20 +97,19 @@ def clock():
     V_date.set(di.strftime("%a  %b  %d    %Y"))
     V_time.set(di.strftime("%H:%M:%S"))
     if time_dicts := list(filter(lambda name:make_time_dicts(name), ans.keys())):
-        if len(time_dicts)==1:
-            ti = ans[time_dicts[0]]["prompt"].split("\n")
-            Data.notifier(time_dicts[0], ti[:3])
-        else:
-            messages = []
-            list(map(lambda name:make_message(name),time_dicts))
-            print(messages)
-            Data.notifier("Multiple Task",messages)
         if Music.media.isPlaying():
             if Music.playlist:
                 Music.stop_list()
             else:
                 Music.stop()
         Music.play(Data.get("set")["ClockMusic"])
+        if len(time_dicts)==1:
+            ti = ans[time_dicts[0]]["prompt"].split("\n")
+            Data.notifier(time_dicts[0], ti[:3])
+        else:
+            messages = []
+            list(map(lambda name:make_message(name),time_dicts))
+            Data.notifier("Multiple Task",messages)
     elif V_play.get() == -1 and not Music.media.isPlaying():
         V_play.set(0)
 
@@ -629,6 +628,9 @@ class MusicPlayer:
     def stop(self):
         V_play.set(0)
         self.timer.stop()
+        self.song.set("")
+        self.reset_slide()
+        self.change_button()
         self.media.stop()
 
     @property
@@ -664,7 +666,7 @@ class Interaction:
             Music.stop()
         
         toaster = WindowsToaster(Data.get("set")["title"])
-        toast = Toast(on_activated=active)
+        toast = Toast(on_activated=active, on_dismissed=active)
         toast_image = ToastImage(r"./init_file/music.ico")
         toast.AddImage(ToastDisplayImage(toast_image,Data.get("set")["title"],ToastImagePosition.AppLogo))
         toast.text_fields=[title]+message
@@ -1072,17 +1074,22 @@ class Page_Organize:
                 write1.WST.clear()
                 write1.WST.addItems(write1.list1)
 
+        def double_click():
+            MessageBox.information(main_window, "字典：查詢成功！", write1.toPlainText().split("\n",int(write2.currentItem().text())+1)[-2])
+
         win = self.add_win("dic", main_window, x=600, y=300)
         style = f"background-color:{color};color:#fc8289;font-family:Arial;font-size:16pt;font-weight:bold;"
         write2 = QtWidgets.QListWidget(win)
         write2.setStyleSheet(widget["PlainTextEdit"])
         write2.setGeometry(400, 100, 200, 200)
         write1 = WriteIt(win, write2, 0, 0, 400, 300)
+        write1.setLineWrapMode(write1.LineWrapMode.NoWrap)
         write2.clicked.connect(lambda: write1.moved())
+        write2.itemDoubleClicked.connect(double_click)
         entry = Entry(win, style, [400, 70, 200, 30])
         entry.textChanged.connect(lambda: connect())
         style1 = f"""QPushButton {{background-color:{color};color:#d48649;font-family:Arial;font-size:16pt;font-weight:bold;}}QPushButton:activate {{background-color:{color};color:#d48649}}"""
-        but2 = Button(win, [400, 40, 100, 30], lambda: write1.clear(), text="clear", style=style1)
+        but2 = Button(win, [400, 40, 100, 30], lambda: write1.clean(), text="clear", style=style1)
         but3 = Button(win,[500, 40, 100, 30],lambda: write1.save_file(),text="save",style=style1,)
         but4 = Button(win, [400, 10, 100, 30], lambda: word_card(), text="單字卡", style=style1)
         l0 = Label(win, [500, 10, 100, 30], text="第1行", style=style)
@@ -1609,6 +1616,7 @@ class WriteIt(WST):
         super().__init__(master, *geometry)
         self.WST = write2
         self.put = Valuable("")
+        self.currentLine = Valuable(0)
         self.cursorPositionChanged.connect(lambda: self.show_line())
         self.setStyleSheet(
             f"""
@@ -1641,7 +1649,8 @@ class WriteIt(WST):
             self.verticalScrollBar().setValue(int(var))
 
     def show_line(self):
-        self.put.set(f"第{self.textCursor().blockNumber()}行")
+        self.currentLine = self.textCursor().blockNumber()
+        self.put.set(f"第{self.currentLine}行")
 
     def Open(self, mode="r"):
         with open(Data.get("set")["DictTxt"], mode, encoding="UTF-8") as o:
