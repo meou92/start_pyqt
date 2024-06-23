@@ -17,6 +17,7 @@ align = Qt.AlignmentFlag
 types = Qt.WindowType
 MessageBox = QtWidgets.QMessageBox
 FileDialog = QtWidgets.QFileDialog
+Attribute = Qt.WidgetAttribute
 
 
 class Valuable:
@@ -92,20 +93,19 @@ def clock():
     V_date.set(di.strftime("%a  %b  %d    %Y"))
     V_time.set(di.strftime("%H:%M:%S"))
     if time_dicts := list(filter(lambda name:make_time_dicts(name), ans.keys())):
-        if len(time_dicts)==1:
-            ti = ans[time_dicts[0]]["prompt"].split("\n")
-            Data.notifier(time_dicts[0], ti[:3])
-        else:
-            messages = []
-            list(map(lambda name:make_message(name),time_dicts))
-            print(messages)
-            Data.notifier("Multiple Task",messages)
         if Music.media.isPlaying():
             if Music.playlist:
                 Music.stop_list()
             else:
                 Music.stop()
         Music.play(Data.get("set")["ClockMusic"])
+        if len(time_dicts)==1:
+            ti = ans[time_dicts[0]]["prompt"].split("\n")
+            Data.notifier(time_dicts[0], ti[:3])
+        else:
+            messages = []
+            list(map(lambda name:make_message(name),time_dicts))
+            Data.notifier("Multiple Task",messages)
     elif V_play.get() == -1 and not Music.media.isPlaying():
         V_play.set(0)
 
@@ -200,71 +200,77 @@ def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0)
     return pb
 
 
+class TodoData(object):
+    __slots__ = ["date", "time", "prompt", "type"]
+    def __init__(self, date: str, time: str, prompt: str, type:Literal[0,1,2,3]):
+        if date == "Next":
+            dn = datetime.now()
+            self.date = [dn.year,dn.month,dn.day]
+        else:
+            self.date = list(map(int, date.split("-")))
+        self.time = list(map(int, time.split(":")))
+        self.prompt = prompt
+        self.type = type
+    def get_date(self) -> str:
+        return "{0[0]:02d}-{0[1]:02d}-{0[2]:02d}".format(self.date)
+    def get_time(self) -> str:
+        return "{0[0]:02d}:{0[1]:02d}:{0[2]:02d}".format(self.time)
+
+
 class Choose(QtWidgets.QCheckBox):
     el = ["每日循環", "一次", "已解決", "停用"]
-    def __init__(self, mas, text: str, else_list: dict):
+    
+    def __init__(self, mas, text: str, else_list: TodoData, y:int):
         super().__init__(text,mas)
-        self.setStyleSheet(f"QCheckBox {{background:#dd7aff;color:{color};font-family:Arial;font-size:20pt;border-radius:10px;}}QCheckBox:disabled {{background:{'#d48649'if else_list['type'] == 0 else'#088fb7'};color:{color2};border-radius:10px;}}")
+        self.setStyleSheet(f"QCheckBox {{background:#dd7aff;color:{color};font-family:Arial;font-size:20pt;border-radius:10px;}}QCheckBox:disabled {{background:{'#d48649'if else_list.type == 0 else'#088fb7'};color:{color2};border-radius:10px;}}")
+        self.move(0,y)
         self.num_list = list(map(str, range(0, 60)))
-        self.left_time = Valuable("")
         self.Else = else_list
         self.No_Change = True
         self.win_count = False
-        self.tag = "tag1"
-        t = else_list["type"]
-        if t == 0:
+        self.Time = else_list.date+else_list.time
+        if else_list.type == 0:
             self.setChecked(True)
-            self.tag = "tag2"
-            dn = datetime.now()
-            t = else_list["time"].split(":")
-            self.Time = [dn.year,dn.month,dn.day,int(t[0]),int(t[1]),int(t[2]),]
             self.setDisabled(True)
         else:
-            self.Time = list(map(int, else_list["date"].split("-"))) + list(map(int, else_list["time"].split(":")))
-            if t != 1:
+            if else_list.type != 1:
                 self.setChecked(True)
-                if t == 3:
-                    self.setDisabled(True)
+            if else_list.type == 3:
+                self.setDisabled(True)
+        self.adjustSize()
+        self.b1 = Button(mas,[self.width(), y+8, 70, 20],lambda: self.scream_choose(),text=self.Else.get_time(),style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;text-align:right;",)
+        self.b1.show()
         self.clicked.connect(lambda: self.Check())
-
-    def button(self, y):
-        b1 = Button(self.parentWidget(),[self.width(), y, 70, 20],lambda: self.scream_choose(),text=self.Else["time"],style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;text-align:right;",)
-        b1.show()
-        return b1
-
-    def Clock(self):
-        if "todo" in Page.page:
-            date0 = datetime.now()
-            times = [(datetime(*self.Time) - date0).days,self.Time[3] - date0.hour,self.Time[4] - date0.minute,self.Time[5] - date0.second,]
-            if times[3] < 0:
-                times[2] -= 1
-                times[3] += 60
-            if times[2] < 0:
-                times[1] -= 1
-                times[2] += 60
-            if times[1] < 0:
-                times[1] += 24
-            if self.Else["type"] == 0:
-                self.left_time.set(f"{times[1]:02d}:{times[2]:02d}:{times[3]:02d}",not sip.isdeleted(self),)
-            else:
-                self.left_time.set(f"{times[0]} {times[1]:02d}:{times[2]:02d}:{times[3]:02d}",not sip.isdeleted(self),)
-        else:
-            del_func_1000(f"Choose Clock:{id(self)}")
-
-    def clock_top_window(self):
-        t0 = WID(None, f"background-color:{colors['normal-bg']};", 0, 0, 300, 50)
-        t0.setWindowFlag(types.SubWindow,True)
-        t0.setWindowOpacity(0.48)
-        t0.clockTopWin(self.left_time.get(), self.Time, self.text())
 
     def Check(self):
         h = Data.load()
         h["Todo"][self.text()]["type"] = int(self.isChecked()) + 1
         Data.write(h)
-        if calendar.selectedDate().toString("yyyy-MM-dd") == self.Else["date"]:
+        if calendar.selectedDate().toString("yyyy-MM-dd") == self.Else.get_date():
             show_todo()
 
     def scream_choose(self, Type: Literal["change", "add"] = "change"):
+        
+        def Clock():
+            if "todo" in Page.page and not sip.isdeleted(self):
+                date0 = datetime.now()
+                date0 = datetime.now()
+                date1 = self.datetime-date0
+                seconds = date1.seconds+1
+                t = f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{(seconds)%60:02d}"
+                if date1.days==0:
+                    b0.setText(t)
+                else:
+                    b0.setText(f"{date1.days} {t}")
+            else:
+                del_func_1000(f"Choose Clock:{id(self)}")
+            
+        def clock_top_window():
+            t0 = WID(None, f"background-color:{colors['normal-bg']};", 0, 0, 300, 50)
+            t0.setWindowFlag(types.SubWindow,True)
+            t0.setWindowOpacity(0.5)
+            t0.clockTopWin(b0.text(), self.Time, self.text())
+        
         def rel():
             p = Page.cal.selectedDate()
             if calendar.selectedDate() in map(lambda x:p.addDays(x-p.dayOfWeek()+1),[0,1,2,3,4,5,6]):
@@ -291,11 +297,23 @@ class Choose(QtWidgets.QCheckBox):
 
         def cancel():
             self.No_Change = True
-            self.left_time.widget = []
             del_func_1000(f"Choose Clock:{id(self)}")
             sip.delete(ma)
+            sip.delete(t1c)
+        
+        def calendar_show():
+            t=Data.get("page")["todo"]
+            t1c.setGeometry(t[0],t[1]+90,260,200)
+            if t1c.isVisible():
+                t1.setDate(t1c.selectedDate())
+            t1c.setVisible(not t1c.isVisible())
+        
+        def calendar_selected():
+            t1.setDate(t1c.selectedDate())
+            t1c.setVisible(False)
 
         if self.No_Change:
+            self.datetime = datetime(*self.Time)
             self.No_Change = False
             color_bg_0 = f"rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.8)"
             ma = WID(None,f"background:{color_bg_0};",*Data.get("page")["todo"],300,250)
@@ -306,14 +324,14 @@ class Choose(QtWidgets.QCheckBox):
             t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:transparent;")
             t1.setCalendarPopup(True)
             t1c = QtWidgets.QCalendarWidget()
+            t1c.setFixedSize(260,200)
+            t1c.setWindowFlag(types.FramelessWindowHint,True)
             t1c.setVerticalHeaderFormat(t1c.VerticalHeaderFormat.NoVerticalHeader)
             t1c.setHorizontalHeaderFormat(t1c.HorizontalHeaderFormat.NoHorizontalHeader)
             t1c.setStyleSheet(
-                """
+                f"""
                 QCalendarWidget QWidget {{
-                    background:transparent;
-                    width:300px;
-                    height:300px;
+                    background:{color};
                 }}
                 QCalendarWidget QAbstractItemView {{
                     font-family:Arial;font-size:8pt;
@@ -328,10 +346,12 @@ class Choose(QtWidgets.QCheckBox):
                 }}
             """
             )
-            t1.setCalendarWidget(t1c)
+            t1c.setVisible(False)
+            t1c.selectionChanged.connect(calendar_selected)
             t1.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
-            t1.setGeometry(0, 30, 300, 30)
+            t1.setGeometry(0, 30, 270, 30)
             t1.show()
+            Button(ma,[270,30,30,30],calendar_show,text=" ").show()
             e4 = Combobox(
                 ma,
                 f"background:{color};color:{color2};font-family:Arial;font-size:17pt;",
@@ -341,14 +361,10 @@ class Choose(QtWidgets.QCheckBox):
             e4.show()
             e3 = TextEdit(ma, 0, 90, 300, 90)
             e3.show()
-            Else = self.Else
-            if Else["type"] != 0:
-                t1.setDateTime(datetime(*list(map(int, Else["date"].split("-") + Else["time"].split(":")))))
-            else:
-                d=datetime.now().date()
-                t1.setDateTime(datetime(d.year,d.month,d.day,*list(map(int, Else["time"].split(":")))),)
-            e3.insertPlainText(Else["prompt"])
-            e4.setCurrentIndex(Else["type"])
+            t1.setDateTime(datetime(*self.Time))
+            t1c.setSelectedDate(t1.date())
+            e3.insertPlainText(self.Else.prompt)
+            e4.setCurrentIndex(self.Else.type)
             if Type == "change":
                 Button(ma,[0, 180, 40, 30],button_choose,text="ok",).show()
                 Button(ma, [40, 180, 60, 30], delete, text="delete").show()
@@ -356,11 +372,10 @@ class Choose(QtWidgets.QCheckBox):
             else:
                 Button(ma,[0, 180, 40, 30],button_choose,text="add",).show()
                 Button(ma, [40, 180, 50, 30], cancel, text="cancel").show()
-            b0 = Button(ma,[200,180,50, 30],lambda: self.clock_top_window(),text="1 00:00:00",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",)
+            b0 = Button(ma,[200,180,50, 30],clock_top_window,text="1 00:00:00",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",)
             b0.adjustSize()
-            self.left_time.add(b0)
-            self.Clock()
-            add_func_1000(f"Choose Clock:{id(self)}", self.Clock)
+            Clock()
+            add_func_1000(f"Choose Clock:{id(self)}", Clock)
             ma.show()
 
 
@@ -382,6 +397,83 @@ class WID(QtWidgets.QWidget):
         super().__init__(parent)
         self.setGeometry(*geometry[:4])
         self.setStyleSheet(style)
+    
+    def clockDestroy(self):
+        del_func_1000(f"TopWin clockCount:{id(self)}")
+        sip.delete(self)
+
+    def clockTopWin(self, target, time, title):
+        
+        def mousePressEvent(a0: QMouseEvent):
+            clicked_label.add(self,a0.pos())
+            if a0.button() == Qt.MouseButton.LeftButton:
+                self.moveFlag = True
+                self.movePosition = a0.globalPosition().toPoint() - self.pos()
+                self.raise_()
+                a0.accept()
+
+        def mouseMoveEvent(a0: QMouseEvent):
+            if self.moveFlag:
+                self.move(a0.globalPosition().toPoint() - self.movePosition)
+                a0.accept()
+
+        def mouseReleaseEvent(a0: QMouseEvent):
+            self.moveFlag = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            a0.accept()
+        
+        def changeBackgroundColor():
+            color = QtWidgets.QColorDialog.getColor(QtGui.QColor(221,122,255),title="background color")
+            color_rgb = color.getRgb()
+            self.setStyleSheet(f"background-color:rgb({color_rgb[0]},{color_rgb[1]},{color_rgb[2]});")
+        def changeForegroundColor():
+            color = QtWidgets.QColorDialog.getColor(QtGui.QColor(221,122,255),title="foreground color")
+            color_rgb = color.getRgb()
+            style = f"background:transparent;color:rgb({color_rgb[0]},{color_rgb[1]},{color_rgb[2]});font-family:Arial;font-size:"
+            l0.setStyleSheet(style+"13pt;")
+            l1.setStyleSheet(style+"20pt;")
+            fg.setStyleSheet(style+"8pt;")
+            bg.setStyleSheet(style+"8pt;")
+            x.setStyleSheet(style+"8pt;")
+        
+        self.left_time = Valuable(target)
+        self.moveFlag = False
+        self.Time = time
+        self.datetime = datetime(*time)
+        self.title = title
+        self.setWindowFlag(types.FramelessWindowHint,True)
+        self.setWindowFlag(types.WindowStaysOnTopHint,True)
+        self.mouseMoveEvent = mouseMoveEvent
+        self.mousePressEvent = mousePressEvent
+        self.mouseReleaseEvent = mouseReleaseEvent
+        self.setFixedSize(175, 60)
+        self.show()
+        style = "background:transparent;color:#dd7aff;font-family:Arial;font-size:"
+        l0=Label(self,[0, 0, 175, 30],text=title,style=style+"13pt;",)
+        l0.show()
+        l1 = Label(self,[0, 30, 175, 30],text="100 00:00:00",style=style+"20pt;",)
+        l1.setAlignment(align.AlignCenter)
+        self.left_time.add(l1)
+        fg=Button(self,[135, 0, 15, 15],changeForegroundColor,text="fg",style=style+"8pt;",)
+        fg.show()
+        bg=Button(self,[150, 0, 15, 15],changeBackgroundColor,text="bg",style=style+"8pt;",)
+        bg.show()
+        x=Button(self,[165, 0, 10, 10],lambda: self.clockDestroy(),text="x",style=style+"8pt;",)
+        x.show()
+        self.clockCount()
+        add_func_1000(f"TopWin clockCount:{id(self)}", self.clockCount)
+
+    def clockCount(self):
+        if self.title in Data.get("Todo"):
+            date1 = self.datetime-datetime.now()
+            seconds = date1.seconds+1
+            t = f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{(seconds)%60:02d}"
+            if date1.days==0:
+                self.left_time.set(t)
+            else:
+                self.left_time.set(f"{date1.days} {t}")
+        else:
+            self.clockDestroy()
 
 
 class WID_Todo(QtWidgets.QScrollArea):
@@ -423,7 +515,7 @@ class NoTitleWidget(WID):
 class TopWin(WID):
     def __init__(self, parent: QtWidgets.QWidget | None, text:page_type, color="transparent", x=0,y=0):
         super().__init__(parent, f"background-color:{color};", *Data.get("page")[text], x,y)
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground,True)
+        self.setAttribute(Attribute.WA_StyledBackground,True)
         self.text = text
         self.moveFlag = False
     def mousePressEvent(self, a0):
@@ -446,44 +538,6 @@ class TopWin(WID):
         o["page"][self.text] = [self.pos().x(), self.pos().y()]
         Data.write(o)
         a0.accept()
-
-    def clockDestroy(self):
-        del_func_1000(f"TopWin clockCount:{id(self)}")
-        sip.delete(self)
-
-    def clockTopWin(self, target, time, title):
-        self.left_time = Valuable(target)
-        self.Time = time
-        self.title = title
-        self.setWindowFlag(types.FramelessWindowHint,True)
-        self.setWindowFlag(types.WindowStaysOnTopHint,True)
-        self.setFixedSize(175, 60)
-        self.show()
-        l0 = Label(self,[0, 0, 175, 30],text=title,style="background:transparent;color:#dd7aff;font-family:Arial;font-size:13pt;",)
-        l0.show()
-        l1 = Label(self,[0, 30, 175, 30],text="100 00:00:00",style="background:transparent;color:#dd7aff;font-family:Arial;font-size:20pt;",)
-        l1.setAlignment(align.AlignCenter)
-        self.left_time.add(l1)
-        Button(self,[165, 0, 10, 10],lambda: self.clockDestroy(),text="x",style="background:transparent;color:#AA5F39;font-family:Arial;font-size:8pt;",).show()
-        self.clockCount()
-        add_func_1000(f"TopWin clockCount:{id(self)}", self.clockCount)
-
-    def clockCount(self):
-        if self.title in Data.get("Todo"):
-            date0 = datetime.now()
-            times = [(date0 - datetime(*self.Time)).days,self.Time[3] - date0.hour,self.Time[4] - date0.minute,self.Time[5] - date0.second,]
-            if times[3] < 0:
-                times[2] -= 1
-                times[3] += 60
-            if times[2] < 0:
-                times[1] -= 1
-                times[2] += 60
-            if times[1] < 0:
-                times[1] += 24
-            self.left_time.set(f"{times[0] or ''} {times[1]:02d}:{times[2]:02d}:{times[3]:02d}")
-        else:
-            self.clockDestroy()
-
 
 class MusicPlayer:
     __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration"]
@@ -624,6 +678,9 @@ class MusicPlayer:
     def stop(self):
         V_play.set(0)
         self.timer.stop()
+        self.song.set("")
+        self.reset_slide()
+        self.change_button()
         self.media.stop()
 
     @property
@@ -659,7 +716,7 @@ class Interaction:
             Music.stop()
         
         toaster = WindowsToaster(Data.get("set")["title"])
-        toast = Toast(on_activated=active)
+        toast = Toast(on_activated=active, on_dismissed=active)
         toast_image = ToastImage(r"./init_file/music.ico")
         toast.AddImage(ToastDisplayImage(toast_image,Data.get("set")["title"],ToastImagePosition.AppLogo))
         toast.text_fields=[title]+message
@@ -903,7 +960,7 @@ class Page_Organize:
         def clicked():
             def lambda_click():
                 if len(m:=list(filter(lambda x:x[0].underMouse(),self.todo_dict)))>0:
-                    chose = Choose(win,"",{"date": (today+timedelta(self.todo_dict.index(m[0]))).strftime("%Y-%m-%d"),"time": "00:00:00","prompt": "","type": 1,},)
+                    chose = Choose(win,"",TodoData((today+timedelta(self.todo_dict.index(m[0]))).strftime("%Y-%m-%d"),"00:00:00","",1),0)
                     chose.setVisible(False)
                     chose.scream_choose("add")
 
@@ -928,13 +985,10 @@ class Page_Organize:
                     Label(wi,[110,4,100,21],text="Today",style=f"color:#6ae680;font-family:Arial Rounded MT Bold;font-weight:bold;font-size:13pt;background:transparent;").show()
                 for fi in sorted(filter(lambda x:ge[x]["date"]==fa.strftime("%Y-%m-%d"),ge),key=lambda x:ge[x]["time"]):
                     gn = ge[fi]
-                    ch = Choose(wi, fi, gn)
-                    ch.move(0, position_y)
-                    ch.adjustSize()
+                    ch = Choose(wi, fi, TodoData(**gn),position_y)
                     ch.show()
-                    b1 = ch.button(position_y + 8)
                     if len(gn["prompt"]) > 0:
-                        l1 = Label(wi,[b1.x()+b1.width(), position_y, 30, 30],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",)
+                        l1 = Label(wi,[ch.b1.x()+ch.b1.width(), position_y, 30, 30],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",)
                         l1.adjustSize()
                         l1.show()
                     position_y+=ch.height()
@@ -973,13 +1027,10 @@ class Page_Organize:
         position_y = 0
         for fa in filter(lambda x:ge[x]["date"]=="Next",ge):
             gn = ge[fa]
-            ch = Choose(w, fa, gn)
-            ch.move(0, position_y)
-            ch.adjustSize()
+            ch = Choose(w, fa, TodoData(**gn),position_y)
             ch.show()
-            b1 = ch.button(position_y+8)
             if len(gn["prompt"]) > 0:
-                l1 = Label(w,[b1.x()+b1.width(), position_y+5, 11, 19],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",)
+                l1 = Label(w,[ch.b1.x()+ch.b1.width(), position_y+5, 11, 19],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",)
                 l1.show()
             position_y+=30
         w.adjustSize()
@@ -1067,17 +1118,22 @@ class Page_Organize:
                 write1.WST.clear()
                 write1.WST.addItems(write1.list1)
 
+        def double_click():
+            MessageBox.information(main_window, "字典：查詢成功！", write1.toPlainText().split("\n",int(write2.currentItem().text())+1)[-2])
+
         win = self.add_win("dic", main_window, x=600, y=300)
         style = f"background-color:{color};color:#fc8289;font-family:Arial;font-size:16pt;font-weight:bold;"
         write2 = QtWidgets.QListWidget(win)
         write2.setStyleSheet(widget["PlainTextEdit"])
         write2.setGeometry(400, 100, 200, 200)
         write1 = WriteIt(win, write2, 0, 0, 400, 300)
+        write1.setLineWrapMode(write1.LineWrapMode.NoWrap)
         write2.clicked.connect(lambda: write1.moved())
+        write2.itemDoubleClicked.connect(double_click)
         entry = Entry(win, style, [400, 70, 200, 30])
         entry.textChanged.connect(lambda: connect())
         style1 = f"""QPushButton {{background-color:{color};color:#d48649;font-family:Arial;font-size:16pt;font-weight:bold;}}QPushButton:activate {{background-color:{color};color:#d48649}}"""
-        but2 = Button(win, [400, 40, 100, 30], lambda: write1.clear(), text="clear", style=style1)
+        but2 = Button(win, [400, 40, 100, 30], lambda: write1.clean(), text="clear", style=style1)
         but3 = Button(win,[500, 40, 100, 30],lambda: write1.save_file(),text="save",style=style1,)
         but4 = Button(win, [400, 10, 100, 30], lambda: word_card(), text="單字卡", style=style1)
         l0 = Label(win, [500, 10, 100, 30], text="第1行", style=style)
@@ -1366,7 +1422,8 @@ class Page_Organize:
         c_scale.setting([0, 100],self.ClockVolume,set_c)
         m_rate_label = Label(wid,[0, 90, 140, 20],text=f"Music Rate {self.MusicRate}",style=style_label)
         m_rate_scale = Slider(wid, 140, 90, 160, 30)
-        c_rate_label = Label(wid,[0, 120, 140, 20],text=f"Clock Rate {self.ClockRate}",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",)
+        m_rate_scale.setting([50, 200],int(self.MusicRate*100),set_music_rate)
+        c_rate_label = Label(wid,[0, 120, 140, 20],text=f"Clock Rate {self.ClockRate}",style=style_label)
         c_rate_scale = Slider(wid, 140, 120, 160, 30)
         c_rate_scale.setting([50, 200],int(self.ClockRate*100),set_clock_rate)
         bg_blur_label = Label(wid,[0, 150, 140, 20],text=f"BG Blur {self.BackgroundBlur}",style=style_label)
@@ -1436,13 +1493,13 @@ class Page_Organize:
                 button_count.setIcon(QIcon(f"{path}\\icon\\暫停.png"))
 
         win = self.add_win("addiction",x=30,y=100)
-        win.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        win.setAttribute(Attribute.WA_TranslucentBackground, True)
         win.mouseMoveEvent = mouse
         win.setGeometry(m.width()-230,int(m.height()//2-50),30,100)
         win.setWindowOpacity(0.7)
         win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool|types.SubWindow)
         win_all = WID(None,"",m.width()-200,0,200,m.height())
-        win_all.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        win_all.setAttribute(Attribute.WA_TranslucentBackground, True)
         win_all.setWindowOpacity(0.7)
         win_all.mouseMoveEvent = mouse
         win_all.mousePressEvent = click
@@ -1596,6 +1653,7 @@ class WriteIt(WST):
         super().__init__(master, *geometry)
         self.WST = write2
         self.put = Valuable("")
+        self.currentLine = Valuable(0)
         self.cursorPositionChanged.connect(lambda: self.show_line())
         self.setStyleSheet(
             f"""
@@ -1628,7 +1686,8 @@ class WriteIt(WST):
             self.verticalScrollBar().setValue(int(var))
 
     def show_line(self):
-        self.put.set(f"第{self.textCursor().blockNumber()}行")
+        self.currentLine = self.textCursor().blockNumber()
+        self.put.set(f"第{self.currentLine}行")
 
     def Open(self, mode="r"):
         with open(Data.get("set")["DictTxt"], mode, encoding="UTF-8") as o:
@@ -1881,7 +1940,6 @@ def connect_1000():
 
 def main_window_clicked(a0: QMouseEvent):
     clicked_label.add(main_window,a0.pos())
-    main_window.setFocus()
     a0.accept()
 
 modes=["all_once","all_infinite","one_infinite"]
@@ -1914,12 +1972,10 @@ color_alpha2 = list(colors["normal"])
 color2 = f"rgb({','.join(map(str,color_alpha2))})"
 color_bg = colors["bg"]
 m = app.screens()[0].size()
-main_window = QtWidgets.QMainWindow()
-main_window.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+main_window = QtWidgets.QWidget()
+main_window.mousePressEvent = main_window_clicked
 main_window.setWindowTitle(data_set["title"])
 main_window.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnBottomHint|types.MaximizeUsingFullscreenGeometryHint)
-main_window.showMaximized()
-main_window.mousePressEvent = main_window_clicked
 if data_set["cursor"]!="":
     pixmap = QPixmap(data_set["cursor"])
     pixmap = pixmap.scaled(30, 30)
@@ -2053,4 +2109,5 @@ for i in [g1,Todo_Win,text_home,Song_Win,combo,slider,calendar,]:
     i.show()
 clock()
 add_func_1000("clock",clock)
+main_window.showMaximized()
 sys.exit(app.exec())
