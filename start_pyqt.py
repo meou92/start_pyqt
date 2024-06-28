@@ -11,7 +11,7 @@ from windows_toasts import WindowsToaster, Toast, ToastDisplayImage, ToastImage,
 from mutagen.mp3 import MP3
 import sys, psutil, json, os, random,webbrowser
 from typing import Literal
-from datetime import datetime,timedelta
+from datetime import datetime,timedelta,date
 from PIL import Image, ImageQt
 
 path = os.getcwd() + "\\init_file\\"
@@ -67,7 +67,7 @@ def destroyed():
     data.set["MusicVolume"] = Page.MusicVolume
     data.set["MusicRate"] = Page.MusicRate
     data.set["BackgroundBlur"] = Page.BackgroundBlur
-    obj = {"Todo":data.Todo, "Class":data.Class, "music":data.music, "learn":data.learn, "set":data.set, "window":data.window, "page":data.page, "color":data.color, "style":data.style,"exe":data.exe}
+    obj = {"Todo":data.Todo, "Class":data.Class, "music":data.music, "learn":data.learn, "set":data.set, "window":data.window, "page":data.page, "color":data.color, "style":data.style,"exe":data.exe,"date":data.date}
     with open(path+"homework.json", "w", encoding="UTF-8") as r:
         json.dump(obj, r)
     Music.stop_list()
@@ -78,6 +78,15 @@ def destroyed():
 
 
 def clock():
+    
+    def make_ring(name: str):
+        nonlocal messages
+        prompts = str(date[name]["prompt"]).split("\n")
+        if prompts==[""]:
+            messages+=[name]
+        else:
+            prompts = list(map(lambda prompt:"  "+prompt,prompts[:3]))
+            messages+=[name+":",*prompts]
 
     def make_message(name:str):
         nonlocal messages
@@ -96,22 +105,28 @@ def clock():
             return f"{data['date']} {data['time']}" == ds and data["type"]<2
     
     ans = data.Todo
+    date = data.date
     di = datetime.now()
     ds = di.strftime("%Y-%m-%d %H:%M:%S")
     V_date.set(di.strftime("%a  %b  %d    %Y"))
     V_time.set(di.strftime("%H:%M:%S"))
-    if time_dicts := list(filter(lambda name:make_time_dicts(name), ans.keys())):
+    time_dicts = list(filter(lambda name:make_time_dicts(name), ans.keys()))
+    event_dicts = list(filter(lambda name:ds in date[name]["rings"], date.keys()))
+    if len(time_dicts)>0 or len(event_dicts)>0:
         if Music.media.isPlaying():
             if Music.playlist:
                 Music.stop_list()
             else:
                 Music.stop()
         Music.play(data.set["ClockMusic"])
-        if len(time_dicts)==1:
-            ti = ans[time_dicts[0]]["prompt"].split("\n")
-            inter.notifier(time_dicts[0], ti[:3])
+        if len(event_dicts)+len(time_dicts)==1:
+            if event_dicts:
+                inter.notifier(event_dicts[0], date[event_dicts[0]]["prompt"].split("\n")[:3])
+            else:
+                inter.notifier(time_dicts[0], ans[time_dicts[0]]["prompt"].split("\n")[:3])
         else:
             messages = []
+            list(map(lambda name:make_ring(name),event_dicts))
             list(map(lambda name:make_message(name),time_dicts))
             inter.notifier("Multiple Task",messages)
     elif V_play.get() == -1 and not Music.media.isPlaying():
@@ -134,7 +149,7 @@ class Label(QtWidgets.QLabel):
 
 
 class Button(QtWidgets.QPushButton):
-    def __init__(self, master, geometry=[], command=None, text:str|None=None, image: QIcon|None=None, style:str|None=None):
+    def __init__(self, master, geometry=[], left_command=None, text:str|None=None, image: QIcon|None=None, style:str|None=None,):
         """
         ::geometry: x, y, w, h
         """
@@ -145,11 +160,14 @@ class Button(QtWidgets.QPushButton):
             self.setIconSize(QtCore.QSize(*geometry[2:]))
             self.setIcon(image)
         self.setStyleSheet(style if style != None else button_style)
-        self.command=command
+        self.LeftCommand=left_command
+        self.RightCommand=None
         self.setGeometry(*geometry)
     def mousePressEvent(self,a0:QMouseEvent):
-        if self.command != None:
-            self.command()
+        if self.LeftCommand != None and (a0.button() is Qt.MouseButton.LeftButton or self.RightCommand is None):
+            self.LeftCommand()
+        elif not self.RightCommand is None and a0.button() is Qt.MouseButton.RightButton:
+            self.RightCommand()
         if not sip.isdeleted(self):
             clicked_label.add(self.parentWidget(),a0.pos()+self.pos(),self)
         a0.accept()
@@ -197,6 +215,18 @@ class Entry(QtWidgets.QLineEdit):
         super().__init__(text, parent)
         self.setStyleSheet(style)
         self.setGeometry(*geometry)
+
+
+class CalendarWidget(QtWidgets.QCalendarWidget):
+    def __init__(self,master,geometry,connect,style,visible=True,grid_visible=False):
+        super().__init__(master)
+        self.setGeometry(*geometry)
+        self.setVerticalHeaderFormat(self.VerticalHeaderFormat.NoVerticalHeader)
+        self.setHorizontalHeaderFormat(self.HorizontalHeaderFormat.NoHorizontalHeader)
+        self.selectionChanged.connect(connect)
+        self.setStyleSheet(style)
+        self.setVisible(visible)
+        self.setGridVisible(grid_visible)
 
 
 def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0):
@@ -259,15 +289,7 @@ class Choose(QtWidgets.QCheckBox):
         
         def Clock():
             if "todo" in Page.page and not sip.isdeleted(self):
-                date0 = datetime.now()
-                date0 = datetime.now()
-                date1 = self.datetime-date0
-                seconds = date1.seconds+1
-                t = f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{(seconds)%60:02d}"
-                if date1.days==0:
-                    b0.setText(t)
-                else:
-                    b0.setText(f"{date1.days} {t}")
+                b0.setText(Events.clock(self.datetime))
             else:
                 del_func_1000(f"Choose Clock:{id(self)}")
             
@@ -318,41 +340,19 @@ class Choose(QtWidgets.QCheckBox):
             self.datetime = datetime(*self.Time)
             self.No_Change = False
             color_bg_0 = f"rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.8)"
-            ma = WID(None,f"background:{color_bg_0};",*data.page["todo"],300,250)
+            page_todo = data.page["todo"]
+            ma = WID(None,f"background:{color_bg_0};",*page_todo,300,250)
             ma.setWindowFlags(types.SubWindow)
             ma.setWindowTitle(Type if Type == "add" else f"{Type}:{self.text()}")
             e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
             t1 = QtWidgets.QDateTimeEdit(ma)
             t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:{color};")
             t1.setCalendarPopup(False)
-            t1c = QtWidgets.QCalendarWidget()
-            t1c.setFixedSize(260,200)
-            t1c.setWindowFlag(types.FramelessWindowHint,True)
-            t1c.setVerticalHeaderFormat(t1c.VerticalHeaderFormat.NoVerticalHeader)
-            t1c.setHorizontalHeaderFormat(t1c.HorizontalHeaderFormat.NoHorizontalHeader)
-            t1c.setStyleSheet(
-                f"""
-                QCalendarWidget QWidget {{
-                    background:{color};
-                }}
-                QCalendarWidget QAbstractItemView {{
-                    font-family:Arial;font-size:8pt;
-                    color:#d48649;
-                    background-color:#ffc496;
-                    selection-background-color:#d48649;
-                    selection-color:#ffffff;
-                }}
-                QCalendarWidget QToolButton {{
-                    font-family:Arial;font-size:8pt;
-                    color:#d48549;background:transparent;
-                }}
-            """
-            )
-            t1c.setVisible(False)
-            t1c.selectionChanged.connect(calendar_selected)
             t1.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
             t1.setGeometry(0, 30, 270, 30)
             t1.show()
+            t1c = CalendarWidget(None,[page_todo[0],page_todo[1]+90,260,200],calendar_selected,calendar_style1,False)
+            t1c.setWindowFlag(types.FramelessWindowHint,True)
             Button(ma,[270,30,30,30],calendar_show,text=" ").show()
             e4 = Combobox(
                 ma,
@@ -375,6 +375,188 @@ class Choose(QtWidgets.QCheckBox):
                 Button(ma,[0, 180, 40, 30],button_choose,text="add",).show()
                 Button(ma, [40, 180, 50, 30], cancel, text="cancel").show()
             b0 = Button(ma,[200,180,50, 30],clock_top_window,text="1 00:00:00",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",)
+            b0.adjustSize()
+            Clock()
+            add_func_1000(f"Choose Clock:{id(self)}", Clock)
+            ma.show()
+
+
+class Events():
+    __slots__ = ["text","start_date","start_time","start_dt", "end_date", "end_time","end_dt", "prompt","rings"]
+    def __init__(self, text: str, start_date:str, start_time:str, end_date:str, end_time:str, prompt:str,rings:list[str]):
+        self.text=text
+        self.start_date = start_date
+        self.start_time = start_time
+        self.end_date = end_date
+        self.end_time = end_time
+        self.start_dt = datetime.strptime(start_date+" "+start_time,"%Y-%m-%d %H:%M:%S")
+        self.end_dt = datetime.strptime(end_date+" "+end_time,"%Y-%m-%d %H:%M:%S")
+        self.prompt = prompt
+        self.rings = rings
+    @staticmethod
+    def get_in_datetime(start_date:str,date:date, end_date:str):
+        start_dt = datetime.strptime(start_date,"%Y-%m-%d").date()
+        end_dt = datetime.strptime(end_date,"%Y-%m-%d").date()
+        return start_dt<=date<=end_dt
+    @staticmethod
+    def clock(date:datetime):
+        date1 = date-datetime.now()
+        seconds = date1.seconds+1
+        t = f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{(seconds)%60:02d}"
+        if date1.days==0:
+            return t
+        else:
+            return f"{date1.days} "+t
+
+
+class ShowEvents(Button):
+    styles = """
+        QPushButton {
+            background:#ff8bc3;
+            color:%s;
+            font-family:Arial;
+            font-size:20pt;
+            border-radius:10px;
+        }
+        QPushButton:disabled {
+            background:#ffca75;
+            font-family:Arial;
+            font-size:20pt;
+            color:%s;
+            border-radius:10px;
+        }
+    """
+    def __init__(self, master, y, date:date, event:Events):
+        super().__init__(master, [0,y,200,30],lambda:self.scream_choose(),event.text,style=self.styles%(color,color2))
+        self.adjustSize()
+        self.events = event
+        self.No_Change = True
+        if event.end_dt<datetime(date.year,date.month,date.day,0,0,0,0):
+            self.setDisabled(True)
+        if event.end_date == date.strftime("%Y-%m-%d"):
+            label=Label(master, [self.width(),y+8,100,30],event.end_time+"結束",style=f"background:transparent;color:#b588ff;font-family:Arial;font-size:12pt;text-align:right;")
+            label.adjustSize()
+            label.show()
+        elif event.start_date == date.strftime("%Y-%m-%d"):
+            label=Label(master, [self.width(),y+8,100,30],event.start_time+"開始",style=f"background:transparent;color:#b588ff;font-family:Arial;font-size:12pt;text-align:right;")
+            label.adjustSize()
+            label.show()
+    def scream_choose(self, Type: Literal["change", "add"] = "change"):
+
+        def Clock():
+            if "todo" in Page.page and not sip.isdeleted(self):
+                b0.setText(Events.clock(self.datetime))
+            else:
+                del_func_1000(f"Choose Clock:{id(self)}")
+
+        def clock_top_window():
+            t0 = WID(None, f"background-color:{colors['normal-bg']};", 0, 0, 300, 50)
+            t0.setWindowFlag(types.SubWindow,True)
+            t0.setWindowOpacity(0.5)
+            t0.clockTopWin(b0.text(), self.Time, self.text())
+
+        def rel():
+            p = Page.cal.selectedDate()
+            if calendar.selectedDate() in map(lambda x:p.addDays(x-p.dayOfWeek()+1),[0,1,2,3,4,5,6]):
+                show_todo()
+            cancel()
+            Page.destroy_page("todo")
+            Page.todo()
+            Page.cal.setSelectedDate(p)
+
+        def button_choose():
+            if t1.dateTime() < t2.dateTime():
+                if Type == "change" and e1.text() != self.text():
+                    del data.date[self.text()]
+                data.date[e1.text()] = {
+                    "start_date":t1.date().toString("yyyy-MM-dd"),
+                    "start_time":t1.time().toString("hh:mm:ss"),
+                    "end_date": t2.date().toString("yyyy-MM-dd"),
+                    "end_time":t2.time().toString("hh:mm:ss"),
+                    "rings": e4.toPlainText().split("\n"),
+                    "prompt":e3.toPlainText()
+                }
+                rel()
+
+        def delete():
+            del data.date[self.text()]
+            rel()
+
+        def cancel():
+            self.No_Change = True
+            del_func_1000(f"Choose Clock:{id(self)}")
+            sip.delete(ma)
+            sip.delete(t1c)
+            sip.delete(t2c)
+
+        def calendar_show():
+            t=data.page["todo"]
+            t1c.setGeometry(t[0],t[1]+90,260,200)
+            if t1c.isVisible():
+                t1.setDate(t1c.selectedDate())
+            t1c.setVisible(not t1c.isVisible())
+
+        def calendar_selected():
+            t1.setDate(t1c.selectedDate())
+            t1c.setVisible(False)
+
+        def calendar_show2():
+            t=data.page["todo"]
+            t2c.setGeometry(t[0],t[1]+120,260,200)
+            if t2c.isVisible():
+                t2.setDate(t2c.selectedDate())
+            t2c.setVisible(not t2c.isVisible())
+
+        def calendar_selected2():
+            t2.setDate(t2c.selectedDate())
+            t2c.setVisible(False)
+
+        if self.No_Change:
+            event = self.events
+            self.datetime = event.start_dt if event.start_dt>datetime.now() else event.end_dt
+            self.No_Change = False
+            color_bg_0 = f"rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.8)"
+            page_todo = data.page["todo"]
+            ma = WID(None,f"background:{color_bg_0};",*page_todo,300,280)
+            ma.setWindowFlags(types.SubWindow)
+            ma.setWindowTitle(Type if Type == "add" else f"{Type}:{event.text}")
+            e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
+            t1 = QtWidgets.QDateTimeEdit(ma)
+            t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:{color};")
+            t1.setCalendarPopup(False)
+            t1.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
+            t1.setGeometry(0, 30, 270, 30)
+            t1.show()
+            t1c = CalendarWidget(None,[page_todo[0],page_todo[1]+90,260,200],calendar_selected, calendar_style1,False)
+            t1c.setWindowFlag(types.FramelessWindowHint,True)
+            Button(ma,[270,30,30,30],calendar_show," ").show()
+            t2 = QtWidgets.QDateTimeEdit(ma)
+            t2.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:{color};")
+            t2.setCalendarPopup(False)
+            t2.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
+            t2.setGeometry(0, 60, 270, 30)
+            t2.show()
+            t2c = CalendarWidget(None,[page_todo[0],page_todo[1]+120,260,200],calendar_selected2, calendar_style1,False)
+            t2c.setWindowFlag(types.FramelessWindowHint,True)
+            Button(ma,[270,60,30,30],calendar_show2," ").show()
+            e3 = TextEdit(ma, 0, 90, 300, 90)
+            e3.show()
+            e4 = TextEdit(ma, 0, 180, 300, 30)
+            e4.show()
+            t1.setDateTime(event.start_dt)
+            t2.setDateTime(event.end_dt)
+            t1c.setSelectedDate(t1.date())
+            t2c.setSelectedDate(t2.date())
+            e3.insertPlainText(event.prompt)
+            e4.insertPlainText("\n".join(event.rings))
+            if Type == "change":
+                Button(ma,[0, 210, 40, 30],button_choose,text="ok",).show()
+                Button(ma, [40, 210, 60, 30], delete, text="delete").show()
+                Button(ma, [100, 210, 50, 30], cancel, text="cancel").show()
+            else:
+                Button(ma,[0, 210, 40, 30],button_choose,text="add",).show()
+                Button(ma, [40, 210, 50, 30], cancel, text="cancel").show()
+            b0 = Button(ma,[200,210,50, 30],clock_top_window,text="1 00:00:00",style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;",)
             b0.adjustSize()
             Clock()
             add_func_1000(f"Choose Clock:{id(self)}", Clock)
@@ -467,13 +649,7 @@ class WID(QtWidgets.QWidget):
 
     def clockCount(self):
         if self.title in data.Todo:
-            date1 = self.datetime-datetime.now()
-            seconds = date1.seconds+1
-            t = f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{(seconds)%60:02d}"
-            if date1.days==0:
-                self.left_time.set(t)
-            else:
-                self.left_time.set(f"{date1.days} {t}")
+            self.left_time.set(Events.clock(self.datetime))
         else:
             self.clockDestroy()
 
@@ -683,11 +859,11 @@ class MusicPlayer:
 
 
 class Json_Data(object):
-    __slots__ = ["Todo", "Class", "music", "learn", "set", "window", "page", "color", "style","exe"]
+    __slots__ = ["Todo", "Class", "music", "learn", "set", "window", "page", "color", "style","exe", "date"]
     def __init__(self):
         with open(path+"homework.json", encoding="UTF-8") as r:
             tem_dic = dict(json.load(r))
-            self.Todo:dict[str,list] = tem_dic["Todo"]
+            self.Todo:dict[str,dict] = tem_dic["Todo"]
             self.Class:dict[str,int|list] = tem_dic["Class"]
             self.music:dict[str,int|list] = tem_dic["music"]
             self.learn:dict[str,str] = tem_dic["learn"]
@@ -697,6 +873,7 @@ class Json_Data(object):
             self.color:list[dict] = tem_dic["color"]
             self.style:list[dict] = tem_dic["style"]
             self.exe:list[dict] = tem_dic["exe"]
+            self.date:dict[str,dict] = tem_dic["date"]
 
 
 class Interaction:
@@ -951,29 +1128,44 @@ class Page_Organize:
                     chose = Choose(win,"",TodoData((today+timedelta(self.todo_dict.index(m[0]))).strftime("%Y-%m-%d"),"00:00:00","",1),0)
                     chose.setVisible(False)
                     chose.scream_choose("add")
+            def lambda_click2():
+                if len(m:=list(filter(lambda x:x[0].underMouse(),self.todo_dict)))>0:
+                    day = (today + timedelta(self.todo_dict.index(m[0])))
+                    date = day.strftime("%Y-%m-%d")
+                    chose = ShowEvents(win,0,day,Events("",date,"00:00:00",date,"00:00:00","",[]))
+                    chose.setVisible(False)
+                    chose.scream_choose("add")
 
             today = cal.selectedDate().toPyDate()
             today = today - timedelta(today.weekday())
-            ge = data.Todo
+            todo = data.Todo
+            event = data.date
             list(map(lambda x:(sip.delete(x[0]),sip.delete(x[1])),self.todo_dict))
             self.todo_dict = []
-            for fa in map(lambda x:today+timedelta(x),[0,1,2,3,4,5,6]):
+            for dates in map(lambda x:today+timedelta(x),[0,1,2,3,4,5,6]):
                 position_y = 25
-                if fa.weekday()<5:
-                    y = 100*fa.weekday()
+                if dates.weekday()<5:
+                    y = 100*dates.weekday()
                     x=0
                 else:
-                    y = 100*(fa.weekday()-2)
+                    y = 100*(dates.weekday()-2)
                     x = 340
                 wi = WID(win,"background:transparent;",0,0,1,1)
                 si = WID_Todo(win,wi,style,[x,y,340,100])
                 self.todo_dict+=[[wi,si]]
-                Button(wi,[10,5,100,20],lambda_click,text=fa.strftime("%m/%d  %a"),style=f"color:{color2};font-family:Arial;font-size:14pt;background:transparent;border:none;").show()
-                if fa.strftime("%Y/%m/%d  %a")==datetime.now().strftime("%Y/%m/%d  %a"):
+                button=Button(wi,[10,5,100,20],lambda_click,text=dates.strftime("%m/%d  %a"),style=f"color:{color2};font-family:Arial;font-size:14pt;background:transparent;border:none;")
+                button.show()
+                button.RightCommand = lambda_click2
+                if dates.strftime("%Y/%m/%d  %a")==datetime.now().strftime("%Y/%m/%d  %a"):
                     Label(wi,[110,4,100,21],text="Today",style=f"color:#6ae680;font-family:Arial Rounded MT Bold;font-weight:bold;font-size:13pt;background:transparent;").show()
-                for fi in sorted(filter(lambda x:ge[x]["date"]==fa.strftime("%Y-%m-%d"),ge),key=lambda x:ge[x]["time"]):
-                    gn = ge[fi]
-                    ch = Choose(wi, fi, TodoData(**gn),position_y)
+                for event_key in sorted(filter(lambda x:Events.get_in_datetime(event[x]["start_date"],dates,event[x]["end_date"]),event)):
+                    event_ = Events(event_key,**event[event_key])
+                    label_event = ShowEvents(wi, position_y, dates, event_)
+                    label_event.show()
+                    position_y+=label_event.height()
+                for todo_list in sorted(filter(lambda x:todo[x]["date"]==dates.strftime("%Y-%m-%d"),todo),key=lambda x:todo[x]["time"]):
+                    gn = todo[todo_list]
+                    ch = Choose(wi, todo_list, TodoData(**gn),position_y)
                     ch.show()
                     if len(gn["prompt"]) > 0:
                         l1 = Label(wi,[ch.b1.x()+ch.b1.width(), position_y, 30, 30],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",)
@@ -1024,35 +1216,13 @@ class Page_Organize:
         w.adjustSize()
         w.setMinimumSize(w.width(),w.height())
         WID_Todo(win,w,style,[340,200,340,100]).show()
-        cal = QtWidgets.QCalendarWidget(win)
-        cal.setGeometry(340,0,200,200)
-        cal.setVerticalHeaderFormat(cal.VerticalHeaderFormat.NoVerticalHeader)
+        cal = CalendarWidget(win,[340,0,200,200],clicked,calendar_style0,grid_visible=True)
         cal.setHorizontalHeaderFormat(cal.HorizontalHeaderFormat.SingleLetterDayNames)
         forma = cal.headerTextFormat()
         forma.setBackground(QtGui.QColor(color_alpha[0],color_alpha[1],color_alpha[2],30))
         forma.setFontPointSize(8)
         cal.setHeaderTextFormat(forma)
         cal.setFirstDayOfWeek(Qt.DayOfWeek.Monday)
-        cal.setGridVisible(True)
-        cal.setStyleSheet(
-            f"""
-            QCalendarWidget QWidget {{
-                background:transparent;
-            }}
-            QCalendarWidget QAbstractItemView {{
-                color:{color2};
-                background-color:{color};
-                selection-background-color:{color2};
-                selection-color:{color};
-            }}
-            QCalendarWidget QToolButton {{
-                font-family:Arial;
-                font-weight:bold;
-                color:#ffffff;background:transparent;
-            }}
-        """
-        )
-        cal.selectionChanged.connect(clicked)
         cal.show()
         self.cal = cal
         Button(win,[540,175,25,25],last,image=QIcon(f"{path}home\\last.png"),style=f"background:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);",).show()
@@ -1456,7 +1626,7 @@ class Page_Organize:
             else:
                 inter.start()
                 button_count.setIcon(QIcon(f"{path}\\icon\\暫停.png"))
-        
+
         def refresh(a0=None):
             if "wid_exe" in self.mini_dict and "scr_exe" in self.mini_dict:
                 sip.delete(self.mini_dict["wid_exe"])
@@ -1520,7 +1690,7 @@ class Page_Organize:
         Button(win_all,[40, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
         Button(win_all,[65, 115, 15, 15],next_music,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
         mode = Button(win_all,[130, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
-        mode.command=lambda:set_play_mode(mode)
+        mode.LeftCommand=lambda:set_play_mode(mode)
         mode.show()
         Timer_Win = WID(win_all,"background:#00000000;",0,135,200,60)
         Timer_l1 = Label(Timer_Win, [0, 0, 200, 35], text=inter.show.get(), style=f"background-color:rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]}, 0.78);font-family:Arial;font-size:26pt;font-weight:bold;color:#d48649")
@@ -1691,12 +1861,24 @@ def double_clicked():
 
 
 def show_todo():
-    todo = data.Todo
+    
+    def event_sorted(x):
+        if dates[x]["start_date"]==Date.toString("yyyy-MM-dd"):
+            return datetime.strptime(dates[x]["start_date"]+" "+dates[x]["start_time"],"%Y-%m-%d %H:%M:%S")
+        else:
+            return x
+    
+    todo_ = data.Todo
     text = ""
-    li = list(filter(lambda x: todo[x]["date"] == calendar.selectedDate().toString("yyyy-MM-dd") and todo[x]["type"] in [1,3],todo,))
-    if len(li) > 0:
-        text = "\n".join(map(lambda x:f'{todo[x]["time"]} {x}',sorted(li,key=lambda x:todo[x]["time"])))
-    else:
+    Date=calendar.selectedDate()
+    todo = list(filter(lambda x: todo_[x]["date"] == Date.toString("yyyy-MM-dd") and todo_[x]["type"] in [1,3],todo_,))
+    dates = data.date
+    event = sorted(filter(lambda x:Events.get_in_datetime(dates[x]["start_date"],Date.toPyDate(),dates[x]["end_date"]),dates),key=event_sorted)
+    if len(event)> 0:
+        text = "\n".join(event)
+    if len(todo) > 0:
+        text += "\n".join(map(lambda x:f'{todo_[x]["time"]} {x}',sorted(todo,key=lambda x:todo_[x]["time"])))
+    elif len(event)==0:
         text = "無"
     text_home.setPlainText(text)
 
@@ -1835,8 +2017,8 @@ class ClickedLabel():
             a1.accept()
         
         def Button_func(a1:QMouseEvent):
-            if mousePressTarget.command != None:
-                mousePressTarget.command()
+            if mousePressTarget.LeftCommand != None:
+                mousePressTarget.LeftCommand()
             if not sip.isdeleted(mousePressTarget):
                 self.add(parent,label.pos()+a1.pos(),mousePressTarget)
             a1.accept()
@@ -1983,13 +2165,7 @@ Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text
 Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
 Todo_Win = NoTitleWidget(main_window, "todo", 250, 290)
 Todo_Win.setStyleSheet("background:transparent;")
-calendar = QtWidgets.QCalendarWidget(Todo_Win)
-calendar.setVerticalHeaderFormat(calendar.VerticalHeaderFormat.NoVerticalHeader)
-calendar.setHorizontalHeaderFormat(calendar.HorizontalHeaderFormat.NoHorizontalHeader)
-calendar.selectionChanged.connect(show_todo)
-calendar.setGeometry(0, 0, 250, 200)
-calendar.setStyleSheet(
-    f"""
+calendar_style0=f"""
     QCalendarWidget QWidget {{
         background:transparent;
     }}
@@ -2002,10 +2178,27 @@ calendar.setStyleSheet(
     QCalendarWidget QToolButton {{
         font-family:Arial Rounded MT Bold;
         font-weight:bold;
-        color:#ffffff;background:transparent;
+        color:#ffffff;
+        background:transparent;
     }}
 """
-)
+calendar_style1 = f"""
+    QCalendarWidget QWidget {{
+        background:{color};
+    }}
+    QCalendarWidget QAbstractItemView {{
+        font-family:Arial;font-size:8pt;
+        color:#d48649;
+        background-color:#ffc496;
+        selection-background-color:#d48649;
+        selection-color:#ffffff;
+    }}
+    QCalendarWidget QToolButton {{
+        font-family:Arial;font-size:8pt;
+        color:#d48549;background:transparent;
+}}
+"""
+calendar = CalendarWidget(Todo_Win,[0, 0, 250, 200],show_todo,calendar_style0)
 op0 = QtWidgets.QGraphicsOpacityEffect()
 op0.setOpacity(0.53)
 calendar.setGraphicsEffect(op0)
@@ -2038,7 +2231,7 @@ background = f"rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]},0.46)"
 Button(Song_Win,[125, 60, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
 Button(Song_Win,[165, 65, 15, 15],next_music,image=QIcon(f"{path}home\\next.png"),style="background-color:transparent;").show()
 mode = Button(Song_Win,[225, 60, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background-color:transparent;",)
-mode.command=lambda:set_play_mode(mode)
+mode.LeftCommand=lambda:set_play_mode(mode)
 mode.show()
 slider = Slider(Song_Win, 5, 85, 240, 20)
 slider.actionTriggered.connect(lambda:Music.slider_change(slider))
@@ -2072,7 +2265,7 @@ listbox.setStyleSheet(f"""
 listbox.itemDoubleClicked.connect(double_clicked)
 com(combo)
 listbox.show()
-for i in [g1,Todo_Win,text_home,Song_Win,combo,slider,calendar,]:
+for i in [g1,Todo_Win,text_home,Song_Win,combo,slider,]:
     i.show()
 clock()
 add_func_1000("clock",clock)
