@@ -224,7 +224,7 @@ class CalendarWidget(QtWidgets.QCalendarWidget):
         self.setGridVisible(grid_visible)
 
 
-def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0):
+def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0,):
     pb = QtWidgets.QProgressBar(parent)
     pb.setRange(min,max)
     pb.setStyleSheet(stylesheet)
@@ -872,7 +872,7 @@ class Json_Data(object):
 
 
 class Interaction:
-    __slots__ = ["time","timer","ctime","count","win","win_bool","ListBox","NoEdit","show",]
+    __slots__ = ["time","timer","ctime","count","win_bool","show",]
 
     def __init__(self):
         self.show = Valuable("00:00:00")
@@ -975,7 +975,7 @@ class Interaction:
 
 
 class Page_Organize:
-    __slots__ = ["page", "test_num", "test_number", "listbox","ClockVolume","MusicVolume","ClockRate","MusicRate","BackgroundBlur","mini_dict","todo_dict","cal"]
+    __slots__ = ["page", "test_num", "test_number", "ClockVolume","MusicVolume","ClockRate","MusicRate","BackgroundBlur","mini_dict","todo_dict","cal"]
 
     class But(QtWidgets.QPushButton):
         refresh_func = None
@@ -1085,16 +1085,16 @@ class Page_Organize:
             window.show()
 
     def __init__(self):
+        self.page: dict[page_type, TopWin] = {}
         self.test_num = -1
         self.test_number = 0
-        self.page: dict[page_type, TopWin] = {}
         s = data.set
         self.ClockVolume = s["ClockVolume"]
         self.MusicVolume = s["MusicVolume"]
         self.ClockRate = s["ClockRate"]
         self.MusicRate = s["MusicRate"]
         self.BackgroundBlur = s["BackgroundBlur"]
-        self.mini_dict:dict[Literal["time","date","combo","mode","win","timer","wid_exe","scr_exe"],Label|Button|Combo|WID]={}
+        self.mini_dict:dict[Literal["time","date","combo","mode","timer","wid_exe","scr_exe"],Label|Button|Combo|WID]={}
         self.cal = None
 
     def add_win(self,page: page_type,parent: QtWidgets.QMainWindow | None = None,color="transparent",x=0,y=0,):
@@ -1113,7 +1113,6 @@ class Page_Organize:
                 inter.show.delete(self.mini_dict["timer"])
                 Music.slider.pop()
                 Music.show_duration.widget.pop()
-                sip.delete(self.mini_dict["win"])
                 self.mini_dict={}
 
     def todo(self):
@@ -1581,14 +1580,12 @@ class Page_Organize:
 
         def move():
             if win.pos().x()==m.width()-30:
-                win.move(m.width()-230,int(m.height()//2-50))
-                win_all.move(m.width()-200,(m.height()-y)//2)
+                win.move(m.width()-230,(m.height()-y)//2)
             else:
-                win.move(m.width() - 30,int(m.height()//2-50))
-                win_all.move(m.width(),(m.height()-y)//2)
+                win.move(m.width()-30,(m.height()-y)//2)
 
         def click(a0:QMouseEvent):
-            clicked_label.add(win_all,a0.pos())
+            clicked_label.add(win,a0.pos())
             a0.accept()
 
         def mouse(a0):
@@ -1625,7 +1622,7 @@ class Page_Organize:
                 sip.delete(self.mini_dict["wid_exe"])
                 sip.delete(self.mini_dict["scr_exe"])
             exec_list=data.exe
-            wid_exe = WID(win_all,"background:#00000000;",0,0,200,200)
+            wid_exe = WID(win,"background:#00000000;",30,0,200,200)
             width=0
             height=0
             num=0
@@ -1638,62 +1635,53 @@ class Page_Organize:
                 else:
                     width+=max_x-10
                 num+=1
-            scr_exe=WID_Todo(win_all,wid_exe,"background:#00000000;border:none;",[0,215+win_battery.height(),200,300])
+            scr_exe=WID_Todo(win,wid_exe,"background:#00000000;border:none;",[30,215+win_battery.height(),200,300])
             scr_exe.show()
             self.mini_dict.update(wid_exe=wid_exe,scr_exe=scr_exe)
 
-        win = self.add_win("addiction",x=30,y=100)
+        win = self.add_win("addiction",x=230,y=100)
         win.setAttribute(Attribute.WA_TranslucentBackground, True)
         win.mouseMoveEvent = mouse
-        win.setGeometry(m.width()-230,int(m.height()//2-50),30,100)
+        win.mousePressEvent = click
+        win.setGeometry(m.width()-200,0,230,m.height())
         win.setWindowOpacity(0.7)
         win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool|types.SubWindow)
-        win_all = WID(None,"",m.width()-200,0,200,m.height())
-        win_all.setAttribute(Attribute.WA_TranslucentBackground, True)
-        win_all.setWindowOpacity(0.7)
-        win_all.mouseMoveEvent = mouse
-        win_all.mousePressEvent = click
-        win_all.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool|types.SubWindow)
-        win_all.show()
-        win_all_label = Label(win_all, [0, 0, 200, m.height()], "", style=f"background-color:{color};border:none;border-top-left-radius:15px;border-bottom-left-radius:15px;")
-        Label(win, [0, 0, 30, 100], "", style=f"background-color:{color_bg};border:none;border-top-left-radius:15px;border-bottom-left-radius:15px;").show()
-        Button(win,[0,10,30,30],move,text=" ").show()
-        Button(win, [0,60,30,30], lambda:self.destroy_page("addiction"), text="x").show()
-        time = Label(win_all,[0, 0, 200, 30],text=V_time.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:28pt;font-weight:bold;",)
+        win_all_label = Label(win, [30, 0, 200, m.height()], "", style=f"background-color:{color};border:none;border-top-left-radius:15px;border-bottom-left-radius:15px;")
+        time = Label(win,[30, 0, 200, 30],text=V_time.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:28pt;font-weight:bold;",)
         time.setAlignment(align.AlignCenter)
         V_time.add(time)
-        date = Label(win_all,[0, 30, 200, 30],text=V_date.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial;font-size:14pt;font-weight:bold;",)
+        date = Label(win,[30, 30, 200, 30],text=V_date.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial;font-size:14pt;font-weight:bold;",)
         date.setAlignment(align.AlignCenter)
         V_date.add(date)
-        comb = Combo(win_all, "Arial", 14, 8, True, geometry=[0, 60, 200, 30])
+        comb = Combo(win, "Arial", 14, 8, True, geometry=[30, 60, 200, 30])
         comb.activated.connect(lambda:com(comb))
         comb.show()
-        slider_mini = Slider(win_all, 0, 90, 200, 10)
+        slider_mini = Slider(win, 30, 90, 200, 10)
         slider_mini.setStyleSheet(widget["Slider-1"])
         slider_mini.actionTriggered.connect(lambda:Music.slider_change(slider_mini))
         slider_mini.setRange(0,int(slider.maximum()))
         slider_mini.show()
         Music.add_slider(slider_mini)
-        l = Label(win_all,[0,100,70,15],text="00:00/00:00",style=f"color:{color_bg};")
+        l = Label(win,[30,100,70,15],text="00:00/00:00",style=f"color:{color_bg};")
         Music.show_duration.add(l)
-        Button(win_all,[0,115, 15, 15],last,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
-        play = Button(win_all, [15, 110, 25, 25], play_command, image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;")
+        Button(win,[30,115, 15, 15],last,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
+        play = Button(win, [45, 110, 25, 25], play_command, image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;")
         Music.set_button("1", play)
         play.show()
-        Button(win_all,[40, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
-        Button(win_all,[65, 115, 15, 15],next_music,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
-        mode = Button(win_all,[130, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
+        Button(win,[70, 110, 25, 25],lambda: Music.stop_list(),image=QIcon(f"{path}icon\\停止.png"),style="background:transparent;",).show()
+        Button(win,[95, 115, 15, 15],next_music,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
+        mode = Button(win,[160, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
         mode.LeftCommand=lambda:set_play_mode(mode)
         mode.show()
-        Timer_Win = WID(win_all,"background:#00000000;",0,135,200,60)
+        Timer_Win = WID(win,"background:#00000000;",30,135,200,60)
         Timer_l1 = Label(Timer_Win, [0, 0, 200, 35], text=inter.show.get(), style=f"background-color:rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]}, 0.78);font-family:Arial;font-size:26pt;font-weight:bold;color:#d48649")
         Timer_l1.setAlignment(align.AlignRight)
         inter.show.add(Timer_l1)
-        button_count = Button(Timer_Win,[70, 35, 25, 25],count,image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;",)
+        button_count = Button(Timer_Win,[60, 35, 25, 25],count,image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;",)
         button_count.show()
-        Button(Timer_Win,[105, 35, 25, 25],lambda: inter.set_win(),image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
+        Button(Timer_Win,[95, 35, 25, 25],lambda: inter.set_win(),image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
         Timer_Win.show()
-        win_battery = WID(win_all,"background:#00000000;",0,195,200,120)
+        win_battery = WID(win,"background:#00000000;",30,195,200,120)
         co = ",".join(map(str, color_alpha))
         s = "color:%s;background:rgba("+co+",0.5);font-family:Arial;font-size:17pt;"
         progress_style = "QProgressBar {background: rgba("+co+",0.5);border: none;} QProgressBar::chunk {background: %s;}"
@@ -1708,7 +1696,7 @@ class Page_Organize:
         label_cpu.show()
         scale_cpu = progressbar(win_battery,0,10000,progress_style % "#ff6cd1",57)
         label_dict:dict[str,list[Label|QtWidgets.QProgressBar]] = {}
-        h=60
+        h=90
         for i in psutil.disk_partitions():
             Label(win_battery, [0, h, 60, 27], text=f"{i.device}", style=s % "#6ae680").show()
             l = Label(win_battery,[60,h,120,27],text="",style=s % "#6ae680",)
@@ -1721,14 +1709,17 @@ class Page_Organize:
         add_func_1000(f"Page_Organize addiction after:{id(self)}",after)
         win_battery.adjustSize()
         win_battery.show()
-        Button(win_all,[170,195+win_battery.height(),30,20],lambda:self.But.add(),text="add").show()
+        Button(win,[200,195+win_battery.height(),30,20],lambda:self.But.add(),text="add").show()
         Page_Organize.But.refresh_func=refresh
         refresh()
         y=215+win_battery.height()+300
-        win_all.setGeometry(m.width()-200,(m.height()-y)//2,200,y)
-        win_all_label.setGeometry(0,0,200,y)
+        win.setGeometry(m.width()-230,(m.height()-y)//2,230,y)
+        win_all_label.setGeometry(30,0,200,y)
         win_all_label.show()
-        self.mini_dict.update(time=time,date=date,combo=comb,mode=mode,win=win_all,timer=Timer_l1)
+        Label(win, [0, win.height()//2-50, 30, 100], "", style=f"background-color:{color_bg};border:none;border-top-left-radius:15px;border-bottom-left-radius:15px;").show()
+        Button(win,[0,win.height()//2-40,30,30],move,text=" ").show()
+        Button(win, [0,win.height()//2+10,30,30], lambda:self.destroy_page("addiction"), text="x").show()
+        self.mini_dict.update(time=time,date=date,combo=comb,mode=mode,timer=Timer_l1)
         win.show()
 
 
