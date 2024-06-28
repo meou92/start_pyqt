@@ -1,8 +1,3 @@
-# TODO: 在todo頁面加上整日的行程
-# 如下:
-# 名稱 時間(若為全天(資料無時間)則不用)
-# 按下可改時間
-
 from PyQt6 import QtWidgets,QtCore, QtGui, sip
 from PyQt6.QtGui import QPixmap, QIcon, QMouseEvent
 from PyQt6.QtCore import Qt, QTimer
