@@ -4,7 +4,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from windows_toasts import WindowsToaster, Toast, ToastDisplayImage, ToastImage, ToastImagePosition
 from mutagen.mp3 import MP3
-import sys, psutil, json, os, random,webbrowser
+import sys, psutil, json, os, random,webbrowser,requests
 from typing import Literal
 from datetime import datetime,timedelta,date
 from PIL import Image, ImageQt
@@ -64,6 +64,25 @@ def destroyed():
     sys.exit()
 
 
+def weather():
+    url = data.set["WeatherUrl"]
+    data_str = requests.get(url)
+    data_json:dict = data_str.json()
+    location = data_json["records"]["location"]
+    key = list(filter(lambda x:x["locationName"]==data.set["location"],location))
+    if len(key)>0:
+        Position.setText(data.set["location"])
+        key = key[0]["weatherElement"]
+        for time in range(0,3):
+            dic = weather_dict[time]
+            min_temperature8 = key[2]["time"][time]["parameter"]["parameterName"]
+            max_temperature8 = key[4]["time"][time]["parameter"]["parameterName"]
+            dic[0].setText(key[0]["time"][time]["parameter"]["parameterName"])
+            dic[1].setText(f"{min_temperature8}~{max_temperature8}℃")
+            dic[2].setText(f"{key[1]['time'][time]['parameter']['parameterName']}%")
+    else:
+        Position.setText("Error")
+
 def clock():
     
     def make_ring(name: str):
@@ -93,6 +112,7 @@ def clock():
     
     ans = data.Todo
     date = data.date
+    weather()
     di = datetime.now()
     ds = di.strftime("%Y-%m-%d %H:%M:%S")
     V_date.set(di.strftime("%a  %b  %d    %Y"))
@@ -180,7 +200,8 @@ class Combobox(QtWidgets.QComboBox):
 class Combo(QtWidgets.QComboBox):
     def __init__(self,master,font_family,font_size: int,item_font_size: int,bold=False,bg="transparent",geometry=[],):
         super().__init__(master)
-        self.setStyleSheet(f"QComboBox {{background-color:{bg};color:#fc8289;}}QComboBox:activate {{background-color:{bg};color:#fc8289;}}")
+        self.setStyleSheet(f"QComboBox{{background-color:{bg};color:#fc8289;}}")
+        self.highlighted
         font = self.font()
         font.setFamily(font_family)
         font.setPointSize(font_size)
@@ -240,7 +261,6 @@ class TodoData(object):
         return "{0[0]:02d}-{0[1]:02d}-{0[2]:02d}".format(self.date)
     def get_time(self) -> str:
         return "{0[0]:02d}:{0[1]:02d}:{0[2]:02d}".format(self.time)
-
 
 
 class Choose(QtWidgets.QCheckBox):
@@ -1616,8 +1636,8 @@ class Page_Organize:
             QScrollBar::add-line:vertical {{height: 12px;width: 10px;background: transparent;subcontrol-position: bottom;}}
         """,[0,0,340,330]).show()
         s = data.set
-        style_label=f"background:{color};color:{color2};font-family:Arial;font-size:12pt;"
-        style_button=f"QPushButton {{background:{color};color:{color_bg};border-radius:5px;font-family:Arial;font-size:12pt;border:1px solid {color_bg};}} QPushButton:hover {{color:{color_bg};background:rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]}, 0.4);}}"
+        style_label=f"background:transparent;color:{color2};font-family:Arial;font-size:12pt;"
+        style_button=f"QPushButton {{background:{color};color:{color_bg};border-radius:5px;font-family:Arial;font-size:12pt;border:1px solid {color_bg};}} QPushButton:hover {{color:{color_bg};background:transparent;}}"
         style_entry=f"background:rgba(209, 142, 109, 0.4);color:#dd7aff;font-family:Arial;font-size:12pt;"
         dark_label = Label(wid,[70, 0, 70, 20],text="Dark",style=style_label)
         dark_label.setAlignment(align.AlignRight)
@@ -2232,11 +2252,29 @@ Button(g1,[210, 10, 30, 30],lambda: Page.set(),image=QIcon(f"{path}icon\\set.png
 Button(g1,[240, 10, 30, 30],lambda: Page.addiction(),text="⿻",style="font-family:Arial;color:#d48649;background-color: transparent;font-size:29px;",).show()
 Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-").show()
 Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
+WeatherWin = WID(main_window,"background:transparent;",0,70,250,180)
+Label(WeatherWin,[160,0,30,30],image=QPixmap(f"{path}home\\point.png"),style="background:transparent;").show()
+style_label = f"background:transparent;color:{color};font-family:Fira Code Retina;font-size:"
+Position = Label(WeatherWin,[190,0,60,30],"",style=style_label+"20px;")
+Position.show()
+weather_dict:list[list[Label]] = []
+pop_image = QPixmap(f"{path}home\\pop.png")
+for i in range(0,3):
+    y = 10+i*50
+    Weather = Label(WeatherWin,[0,y+3,160,20],"",style=style_label+"17px;")
+    Weather.show()
+    Label(WeatherWin,[0,y+20,20,20],image=pop_image,style="background:transparent;").show()
+    Pop = Label(WeatherWin,[20,y+20,90,20],"",style=style_label+"20px;")
+    Pop.show()
+    Temperature = Label(WeatherWin,[140,y+20,130,20],"",style=style_label+"20px;")
+    Temperature.show()
+    weather_dict.append([Weather,Temperature,Pop])
+WeatherWin.show()
 Todo_Win = NoTitleWidget(main_window, "todo", 250, 290)
 Todo_Win.setStyleSheet("background:transparent;")
 calendar_style0=f"""
     QCalendarWidget QWidget {{
-        background:transparent;
+        background:#ffa040;
     }}
     QCalendarWidget QAbstractItemView {{
         color:{color2};
@@ -2248,7 +2286,7 @@ calendar_style0=f"""
         font-family:Arial Rounded MT Bold;
         font-weight:bold;
         color:#ffffff;
-        background:transparent;
+        background:#ffa040;
     }}
 """
 calendar_style1 = f"""
@@ -2288,7 +2326,7 @@ text_home.setLineWrapMode(text_home.LineWrapMode.NoWrap)
 text_home.setReadOnly(True)
 show_todo()
 Song_Win = NoTitleWidget(main_window, "song", 250, 330)
-combo = Combo(Song_Win, "Arial", 15, 8, False, geometry=[0, 0, 100, 30])
+combo = Combo(Song_Win, "Arial", 15, 8, False,bg=f"rgba({color_alpha[0]},{color_alpha[1]}, {color_alpha[2]},0.3)", geometry=[0, 0, 100, 30])
 combo.textActivated.connect(lambda:com(combo))
 song_home = Label(Song_Win, [10, 30, 250, 30], text=Music.song.get(), style=style0 + "font-size:12pt;")
 Music.song.add(song_home)
