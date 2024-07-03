@@ -1929,7 +1929,7 @@ class WriteIt(WST):
 def background_blur_show(file):
     img0 = Image.open(file)
     q_image0 = ImageQt.toqimage(img0)
-    i = QPixmap(img0.width, img0.height).fromImage(q_image0).scaledToWidth(m.width())
+    i = QPixmap(img0.width, img0.height).fromImage(q_image0).scaled(m.width(),int(m.width()*img0.height/img0.width))
     bg.setPixmap(i)
     l0.setPixmap(i.copy(0, 0, 250, m.height()))
 
