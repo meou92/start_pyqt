@@ -112,13 +112,14 @@ def clock():
     
     ans = data.Todo
     date = data.date
-    weather()
     di = datetime.now()
     ds = di.strftime("%Y-%m-%d %H:%M:%S")
     V_date.set(di.strftime("%a  %b  %d    %Y"))
     V_time.set(di.strftime("%H:%M:%S"))
     time_dicts = list(filter(lambda name:make_time_dicts(name), ans.keys()))
     event_dicts = list(filter(lambda name:ds in date[name]["rings"], date.keys()))
+    if di.hour%8==di.minute==di.second==0:
+        weather()
     if len(time_dicts)>0 or len(event_dicts)>0:
         if Music.media.isPlaying():
             if Music.playlist:
@@ -1948,14 +1949,14 @@ class WriteIt(WST):
 def background_blur_show(file):
     img0 = Image.open(file)
     q_image0 = ImageQt.toqimage(img0)
-    m_tan = m.height()/m.width()
-    i_tan = img0.height/img0.width
+    i_tan = img0.width/img0.height
+    m_tan = m.width()/m.height()
     i=QPixmap(img0.width, img0.height).fromImage(q_image0)
-    i = i.scaled(m.width(),int(m.width()*i_tan))
-    if i.height()<m.height():
-        m.width(),int(m.width()*i_tan)
-        w=int(m.width()*i_tan/m_tan)
-        i=i.copy(int((m.width()-w)/2),0,int(w),int(m.width()*i_tan)).scaled(m.width(),m.height())
+    if i_tan>m_tan:
+        w = int(i.width()/m_tan)
+        i = i.copy((i.width()-w)//2,0,w,i.height()).scaled(m.width(),m.height())
+    else:
+        i = i.scaled(m.width(),int(m.width()*img0.height/img0.width))
     bg.setPixmap(i)
     l0.setPixmap(i.copy(0, 0, 250, m.height()))
 
@@ -2400,6 +2401,7 @@ com(combo)
 listbox.show()
 for i in [g1,Todo_Win,text_home,Song_Win,combo,slider,]:
     i.show()
+weather()
 clock()
 add_func_1000("clock",clock)
 main_window.showMaximized()
