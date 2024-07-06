@@ -66,22 +66,25 @@ def destroyed():
 
 def weather():
     url = data.set["WeatherUrl"]
-    data_str = requests.get(url)
-    data_json:dict = data_str.json()
-    location = data_json["records"]["location"]
-    key = list(filter(lambda x:x["locationName"]==data.set["location"],location))
-    if len(key)>0:
-        Position.setText(data.set["location"])
-        key = key[0]["weatherElement"]
-        for time in range(0,3):
-            dic = weather_dict[time]
-            min_temperature8 = key[2]["time"][time]["parameter"]["parameterName"]
-            max_temperature8 = key[4]["time"][time]["parameter"]["parameterName"]
-            dic[0].setText(key[0]["time"][time]["parameter"]["parameterName"])
-            dic[1].setText(f"{min_temperature8}~{max_temperature8}℃")
-            dic[2].setText(f"{key[1]['time'][time]['parameter']['parameterName']}%")
-    else:
-        Position.setText("Error")
+    try:
+        data_str = requests.get(url)
+        data_json:dict = data_str.json()
+        location = data_json["records"]["location"]
+        key = list(filter(lambda x:x["locationName"]==data.set["location"],location))
+        if len(key)>0:
+            Position.setText(data.set["location"])
+            key = key[0]["weatherElement"]
+            for time in range(0,3):
+                dic = weather_dict[time]
+                min_temperature8 = key[2]["time"][time]["parameter"]["parameterName"]
+                max_temperature8 = key[4]["time"][time]["parameter"]["parameterName"]
+                dic[0].setText(key[0]["time"][time]["parameter"]["parameterName"])
+                dic[1].setText(f"{min_temperature8}~{max_temperature8}℃")
+                dic[2].setText(f"{key[1]['time'][time]['parameter']['parameterName']}%")
+        else:
+            Position.setText("Error")
+    except:
+        inter.notifier("Error",["請開啟 wi-fi並確認網址無誤","網址如下："+url])
 
 def clock():
     
@@ -1046,6 +1049,7 @@ class Interaction:
         def destroy():
             obj.setTime(datetime.strptime(f"{('0'+label_hour.text())[-3:-1]}:{('0'+label_min.text())[-3:-1]}:{('0'+label_sec.text())[-3:-1]}","%H:%M:%S").time())
             sip.delete(win_time)
+            obj.destroyed.disconnect()
         
         def delete():
             if not sip.isdeleted(win_time):
@@ -2205,6 +2209,9 @@ def main_window_clicked(a0: QMouseEvent):
     clicked_label.add(main_window,a0.pos())
     a0.accept()
 
+def music_list_show():
+    listbox.setVisible(not listbox.isVisible())
+
 modes=["all_once","all_infinite","one_infinite"]
 data = Json_Data()
 inter = Interaction()
@@ -2279,9 +2286,10 @@ Button(g1,[210, 10, 30, 30],lambda: Page.set(),image=QIcon(f"{path}icon\\set.png
 Button(g1,[240, 10, 30, 30],lambda: Page.addiction(),text="⿻",style="font-family:Arial;color:#d48649;background-color: transparent;font-size:29px;",).show()
 Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-").show()
 Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
-WeatherWin = WID(main_window,"background:transparent;",0,70,250,180)
-Label(WeatherWin,[160,0,30,30],image=QPixmap(f"{path}home\\point.png"),style="background:transparent;").show()
-style_label = f"background:transparent;color:{color};font-family:Fira Code Retina;font-size:"
+WeatherWin = WID(main_window,f"background:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.8);",0,70,250,180)
+WeatherWin.setAttribute(Attribute.WA_StyledBackground,True)
+Button(WeatherWin,[160,0,30,30],weather,image=QIcon(f"{path}home\\point.png"),style="background:#00000000;").show()
+style_label = f"background:#00000000;color:{color2};font-family:Fira Code Retina;font-size:"
 Position = Label(WeatherWin,[190,0,60,30],"",style=style_label+"20px;")
 Position.show()
 weather_dict:list[list[Label]] = []
@@ -2290,7 +2298,7 @@ for i in range(0,3):
     y = 10+i*50
     Weather = Label(WeatherWin,[0,y+3,160,20],"",style=style_label+"17px;")
     Weather.show()
-    Label(WeatherWin,[0,y+20,20,20],image=pop_image,style="background:transparent;").show()
+    Label(WeatherWin,[0,y+20,20,20],image=pop_image,style="background:#00000000;").show()
     Pop = Label(WeatherWin,[20,y+20,90,20],"",style=style_label+"20px;")
     Pop.show()
     Temperature = Label(WeatherWin,[140,y+20,130,20],"",style=style_label+"20px;")
@@ -2353,10 +2361,17 @@ text_home.setLineWrapMode(text_home.LineWrapMode.NoWrap)
 text_home.setReadOnly(True)
 show_todo()
 Song_Win = NoTitleWidget(main_window, "song", 250, 330)
-combo = Combo(Song_Win, "Arial", 15, 8, False,bg=f"rgba({color_alpha[0]},{color_alpha[1]}, {color_alpha[2]},0.3)", geometry=[0, 0, 100, 30])
+Button(Song_Win,[0,0,30,30],music_list_show,image=QIcon(f"{path}icon\\music.png"),style="background:transparent;").show()
+combo = Combo(Song_Win, "Arial", 15, 8, True,geometry=[30, 0, 100, 30])
 combo.textActivated.connect(lambda:com(combo))
-song_home = Label(Song_Win, [10, 30, 250, 30], text=Music.song.get(), style=style0 + "font-size:12pt;")
+Button(Song_Win,[150, 0, 25, 25],edit,image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
+Button(Song_Win,[175, 0, 25, 25],add_music,image=QIcon(f"{path}icon\\加入.png"),style="background:transparent;",).show()
+Button(Song_Win,[200, 0, 25, 25],delete_list,text="刪除\n清單",style="background:transparent;color:#AA5F39;font-family:Arial;font-size:8pt;").show()
+Button(Song_Win,[225, 0, 25, 25],add_list,text="加入\n清單",style="background:transparent;color:#AA5F39;font-family:Arial;font-size:8pt;").show()
+song_home = Label(Song_Win, [40, 30, 250, 30], text=Music.song.get(), style=style0 + "font-size:12pt;")
 Music.song.add(song_home)
+l = Label(Song_Win,[0,65,70,25],text="00:00/00:00",style="color:#ffffff;font-family:Arial;font-size:10pt;")
+Music.show_duration.add(l)
 Button(Song_Win,[70, 65, 15, 15],last,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
 button_play = Button(Song_Win,[100, 60, 25, 25],music_play,image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;",)
 button_play.show()
@@ -2370,14 +2385,8 @@ mode.show()
 slider = Slider(Song_Win, 5, 85, 240, 20)
 slider.actionTriggered.connect(lambda:Music.slider_change(slider))
 Music.add_slider(slider)
-l = Label(Song_Win,[0,105,70,25],text="00:00/00:00",style="color:#ffffff;")
-Music.show_duration.add(l)
-Button(Song_Win,[150, 105, 25, 25],edit,image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
-Button(Song_Win,[175, 105, 25, 25],add_music,image=QIcon(f"{path}icon\\加入.png"),style="background:transparent;",).show()
-Button(Song_Win,[200, 105, 25, 25],delete_list,text="刪除\n清單",style="background:transparent;color:#AA5F39;font-family:Arial;font-size:8pt;").show()
-Button(Song_Win,[225, 105, 25, 25],add_list,text="加入\n清單",style="background:transparent;color:#AA5F39;font-family:Arial;font-size:8pt;").show()
 listbox = QtWidgets.QListWidget(Song_Win)
-listbox.setGeometry(0, 130, 250, 200)
+listbox.setGeometry(0, 105, 250, 200)
 listbox.setSelectionMode(listbox.SelectionMode.SingleSelection)
 listbox.setStyleSheet(f"""
     QListWidget {{background:{background};color:#d66b70;font-family:Arial;font-size:15pt;font-weight:bold;}}
