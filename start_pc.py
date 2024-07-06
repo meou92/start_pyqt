@@ -321,8 +321,7 @@ class Choose(QtWidgets.QCheckBox):
                 show_todo()
             cancel()
             Page.destroy_page("todo")
-            Page.todo()
-            Page.cal.setSelectedDate(p)
+            Page.todo(p)
 
         def button_choose():
             e = self.el.index(e4.currentText())
@@ -472,8 +471,7 @@ class ShowEvents(Button):
         if c.addDays(1-c.dayOfWeek()) == p.addDays(1-p.dayOfWeek()):
             show_todo()
         Page.destroy_page("todo")
-        Page.todo()
-        Page.cal.setSelectedDate(p)
+        Page.todo(p)
         if not a0 is None: 
             a0.accept()
     def scream_choose(self, Type: Literal["change", "add"] = "change"):
@@ -496,8 +494,7 @@ class ShowEvents(Button):
                 show_todo()
             cancel()
             Page.destroy_page("todo")
-            Page.todo()
-            Page.cal.setSelectedDate(p)
+            Page.todo(p)
 
         def button_choose():
             if t1.dateTime() < t2.dateTime():
@@ -1232,7 +1229,7 @@ class Page_Organize:
                 Music.show_duration.widget.pop()
                 self.mini_dict={}
 
-    def todo(self):
+    def todo(self,select_date:date|None=None):
         def clicked():
             today = cal.selectedDate().toPyDate()
             today = today - timedelta(today.weekday())
@@ -1325,6 +1322,7 @@ class Page_Organize:
         forma = cal.headerTextFormat()
         forma.setBackground(QtGui.QColor(color_alpha[0],color_alpha[1],color_alpha[2],30))
         forma.setFontPointSize(8)
+        cal.setSelectedDate(select_date or datetime.now().date())
         cal.setHeaderTextFormat(forma)
         cal.setFirstDayOfWeek(Qt.DayOfWeek.Monday)
         cal.show()
