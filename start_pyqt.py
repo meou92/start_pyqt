@@ -251,7 +251,7 @@ def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0,
 
 
 class TodoData(object):
-    __slots__ = ["date", "time", "prompt", "type"]
+    __slots__ = ["date", "time", "prompt", "type","win"]
     def __init__(self, date: str, time: str, prompt: str, type:Literal[0,1,2,3]):
         if date == "Next":
             dn = datetime.now()
@@ -260,45 +260,56 @@ class TodoData(object):
             self.date = list(map(int, date.split("-")))
         self.time = list(map(int, time.split(":")))
         self.prompt = prompt
-        self.type = type
+        self.type:Literal[0,1,2,3] = type
+        self.win=None
     def get_date(self) -> str:
         return "{0[0]:02d}-{0[1]:02d}-{0[2]:02d}".format(self.date)
     def get_time(self) -> str:
         return "{0[0]:02d}:{0[1]:02d}:{0[2]:02d}".format(self.time)
+    def hover(self,x:int,y:int) -> None:
+        l=Label(Page.page["todo"],[0,0,300,300],self.prompt,style=f"color:{color_bg};background:{color};")
+        l.adjustSize()
+        l.show()
+        l.setGeometry(x-l.width(),y-l.height(),l.width(),l.height())
+        self.win = l
 
 
 class Choose(QtWidgets.QCheckBox):
     el = ["每日循環", "一次", "已解決", "停用"]
     
-    def __init__(self, mas, text: str, else_list: TodoData, y:int, visible=True):
+    def __init__(self, mas:QtWidgets.QWidget, text: str, todo_data: TodoData, y:int, visible=True,wid_todo:QtWidgets.QScrollArea|None=None):
         super().__init__(text,mas)
-        self.setStyleSheet(f"QCheckBox {{background:#dd7aff;color:{color};font-family:Arial;font-size:20pt;border-radius:10px;}}QCheckBox:disabled {{background:{'#d48649'if else_list.type == 0 else'#088fb7'};color:{color2};border-radius:10px;}}")
+        self.mas = wid_todo
+        self.setStyleSheet(f"QCheckBox {{background:#dd7aff;color:{color};font-family:Arial;font-size:20pt;border-radius:10px;}}QCheckBox:disabled {{background:{'#d48649'if todo_data.type == 0 else'#088fb7'};color:{color2};border-radius:10px;}}")
         self.move(0,y)
         self.num_list = list(map(str, range(0, 60)))
-        self.Else = else_list
+        self.Data = todo_data
         self.No_Change = True
         self.win_count = False
-        self.Time = else_list.date+else_list.time
+        self.Time = todo_data.date+todo_data.time
+        self.adjustSize()
+        self.b1=Button(mas,[self.width(), y+8, 70, 20],lambda: self.scream_choose(),text=self.Data.get_time(),style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;text-align:right;",)
+        self.b2=Button(mas,[self.b1.x()+self.b1.width(), y+5, 11, 19],lambda:self.prompt_show(),"*",style="color:#7bc3c4;font-family:Arial;font-size:20pt;font-weight:bold;background:transparent;",)
+        self.setVisible(visible)
+        self.b1.setVisible(visible)
+        self.b2.setVisible(visible and len(todo_data.prompt)>0)
         if visible:
-            if else_list.type == 0:
-                self.setChecked(True)
-                self.setDisabled(True)
-            else:
-                if else_list.type != 1:
-                    self.setChecked(True)
-                if else_list.type == 3:
-                    self.setDisabled(True)
-            self.adjustSize()
-            self.b1 = Button(mas,[self.width(), y+8, 70, 20],lambda: self.scream_choose(),text=self.Else.get_time(),style=f"background:transparent;color:#dd7aff;font-family:Arial;font-size:12pt;text-align:right;",)
-            self.b1.show()
+            self.setChecked(todo_data.type != 1)
+            self.setDisabled(todo_data.type in [0,3])
             self.clicked.connect(lambda: self.Check())
+    
+    def prompt_show(self):
+        if self.Data.win is None or sip.isdeleted(self.Data.win):
+            p0 = self.mas
+            p1 = self.b2
+            self.Data.hover(p0.x()+p1.x(),p0.y()+p1.y())
         else:
-            self.setVisible(False)
+            sip.delete(self.Data.win)
 
     def Check(self):
         data.Todo[self.text()]["type"] = int(self.isChecked()) + 1
         data.write(True)
-        if calendar.selectedDate().toString("yyyy-MM-dd") == self.Else.get_date():
+        if calendar.selectedDate().toString("yyyy-MM-dd") == self.Data.get_date():
             show_todo()
 
     def scream_choose(self, Type: Literal["change", "add"] = "change"):
@@ -317,7 +328,8 @@ class Choose(QtWidgets.QCheckBox):
         
         def rel():
             p = Page.cal.selectedDate()
-            if calendar.selectedDate() in map(lambda x:p.addDays(x-p.dayOfWeek()+1),[0,1,2,3,4,5,6]):
+            c = calendar.selectedDate()
+            if 0<=(p.toPyDate()-c.toPyDate()).days <7:
                 show_todo()
             cancel()
             Page.destroy_page("todo")
@@ -383,8 +395,8 @@ class Choose(QtWidgets.QCheckBox):
             e3.show()
             t1.setDateTime(datetime(*self.Time))
             t1c.setSelectedDate(t1.date())
-            e3.insertPlainText(self.Else.prompt)
-            e4.setCurrentIndex(self.Else.type)
+            e3.insertPlainText(self.Data.prompt)
+            e4.setCurrentIndex(self.Data.type)
             if Type == "change":
                 Button(ma,[0, 180, 40, 30],button_choose,text="ok",).show()
                 Button(ma, [40, 180, 60, 30], delete, text="delete").show()
@@ -1258,12 +1270,8 @@ class Page_Organize:
                     position_y+=label_event.height()
                 for todo_list in sorted(filter(lambda x:todo[x]["date"]==dates.strftime("%Y-%m-%d"),todo),key=lambda x:todo[x]["time"]):
                     gn = todo[todo_list]
-                    ch = Choose(wi, todo_list, TodoData(**gn),position_y)
+                    ch = Choose(wi, todo_list, TodoData(**gn),position_y,wid_todo=si)
                     ch.show()
-                    if len(gn["prompt"]) > 0:
-                        l1 = Label(wi,[ch.b1.x()+ch.b1.width(), position_y, 30, 30],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",)
-                        l1.adjustSize()
-                        l1.show()
                     position_y+=ch.height()
                 wi.adjustSize()
                 wi.setMinimumSize(wi.width(),wi.height())
@@ -1303,20 +1311,19 @@ class Page_Organize:
             QScrollBar::sub-line:horizontal {{height: 12px;width: 10px;background: transparent;subcontrol-position: left;}}
             QScrollBar::add-line:horizontal {{height: 12px;width: 10px;background: transparent;subcontrol-position: right;}}
         """
-        w = QtWidgets.QWidget(win)
-        w.setStyleSheet("background:transparent;")
+        w = WID(win,"background:transparent;",0,0,1,1)
+        t=WID_Todo(win,w,style,[340,200,340,100])
         position_y = 0
         for fa in filter(lambda x:ge[x]["date"]=="Next",ge):
             gn = ge[fa]
-            ch = Choose(w, fa, TodoData(**gn),position_y)
+            ch = Choose(w, fa, TodoData(**gn),position_y,wid_todo=t)
             ch.show()
             if len(gn["prompt"]) > 0:
-                l1 = Label(w,[ch.b1.x()+ch.b1.width(), position_y+5, 11, 19],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",)
-                l1.show()
+                Label(w,[ch.b1.x()+ch.b1.width(), position_y+5, 11, 19],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",).show()
             position_y+=30
         w.adjustSize()
         w.setMinimumSize(w.width(),w.height())
-        WID_Todo(win,w,style,[340,200,340,100]).show()
+        t.show()
         cal = CalendarWidget(win,[340,0,200,200],clicked,calendar_style0,grid_visible=True)
         cal.setHorizontalHeaderFormat(cal.HorizontalHeaderFormat.SingleLetterDayNames)
         forma = cal.headerTextFormat()
