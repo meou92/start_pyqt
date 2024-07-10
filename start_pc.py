@@ -5,7 +5,7 @@ from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from windows_toasts import WindowsToaster, Toast, ToastDisplayImage, ToastImage, ToastImagePosition
 from mutagen.mp3 import MP3
 import sys, psutil, json, os, random,webbrowser,requests
-from typing import Literal
+from typing import Literal,Self
 from datetime import datetime,timedelta,date
 from PIL import Image, ImageQt
 
@@ -763,7 +763,7 @@ class MusicPlayer:
     __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration"]
     State = Literal["stop", "play", "pause"]
 
-    def __init__(self, slider=None):
+    def __init__(self):
         self.mode: Literal["all_once", "all_infinite", "one_infinite"] = data.set["PlayMode"]
         self.media = QMediaPlayer()
         self.play_already=0
@@ -776,10 +776,7 @@ class MusicPlayer:
         self.timer = QTimer()
         self.timer.timeout.connect(lambda: self.update_slide())
         self.button_dict: dict[Literal["1", "music"], Button] = {}
-        if type(slider) == QtWidgets.QSlider:
-            self.slider = [slider]
-        else:
-            self.slider = []
+        self.slider = []
 
     def add_slider(self, slider):
         if type(slider) == Slider:
@@ -1990,19 +1987,18 @@ class TEXT(QtWidgets.QTextEdit):
         self.parentWidget().raise_()
         e.accept()
 
-    def setting(self, obj):
+    def setting(self, obj:Self):
         def on_roll():
             self.rol.setValue(self.sc.value())
         def on_scroll():
             self.sc.setValue(self.rol.value())
 
-        if type(obj) is TEXT:
-            self.obj = obj
-            self.sc = obj.verticalScrollBar()
-            self.rol = self.verticalScrollBar()
-            self.sc.valueChanged.connect(on_roll)
-            self.rol.valueChanged.connect(on_scroll)
-            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.obj = obj
+        self.sc = obj.verticalScrollBar()
+        self.rol = self.verticalScrollBar()
+        self.sc.valueChanged.connect(on_roll)
+        self.rol.valueChanged.connect(on_scroll)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
 
 class WriteIt(WST):
