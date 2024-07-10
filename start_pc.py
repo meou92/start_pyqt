@@ -1,6 +1,6 @@
-from PyQt6 import QtWidgets,QtCore, QtGui, sip
+from PyQt6 import QtWidgets,QtCore, QtGui, sip, QtWebEngineWidgets
 from PyQt6.QtGui import QPixmap, QIcon, QMouseEvent
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from windows_toasts import WindowsToaster, Toast, ToastDisplayImage, ToastImage, ToastImagePosition
 from mutagen.mp3 import MP3
@@ -12,8 +12,8 @@ from PIL import Image, ImageQt
 path = os.getcwd() + "\\init_file\\"
 __stderr__ = open(f"{path}start_log.txt", "a")
 sys.stderr = __stderr__
-page_type = Literal["todo", "dic", "learn", "class", "set","addiction"]
-key_type = Literal["Todo", "Class", "music", "learn", "set", "window", "page", "color", "style","exe"]
+page_type = Literal["todo", "dic", "learn", "class", "set","addiction","exe"]
+data_type = Literal["Todo", "Class", "music", "learn", "set", "window", "page", "color", "style","exe", "date","bookmark"]
 align = Qt.AlignmentFlag
 types = Qt.WindowType
 MessageBox = QtWidgets.QMessageBox
@@ -56,7 +56,7 @@ def destroy():
 
 def destroyed():
     data.set.update({"PlayMode":Music.mode,"dark": V_state.get(),"ClockVolume": Page.ClockVolume,"ClockRate": Page.ClockRate,"MusicVolume": Page.MusicVolume,"MusicRate": Page.MusicRate,"BackgroundBlur": Page.BackgroundBlur})
-    data.write(True)
+    data.write_all()
     Music.stop_list()
     m = list(Page.page.keys())[0:]
     for i in m:
@@ -199,23 +199,20 @@ class Combobox(QtWidgets.QComboBox):
         self.setView(self.ItemView)
         self.setModel(self.ItemView.model())
         self.addItems(values)
+    def update_items(self,values:list[str]):
+        self.clear()
+        self.addItems(values)
 
 
-class Combo(QtWidgets.QComboBox):
+class Combo(Combobox):
     def __init__(self,master,font_family,font_size: int,item_font_size: int,bold=False,bg="transparent",geometry=[],):
-        super().__init__(master)
-        self.setStyleSheet(f"QComboBox{{background-color:{bg};color:#fc8289;}}")
-        self.highlighted
-        font = self.font()
-        font.setFamily(font_family)
-        font.setPointSize(font_size)
-        font.setBold(bold)
-        self.setFont(font)
+        super().__init__(master,f"QComboBox{{background-color:{bg};color:#fc8289;}}",[],geometry,[font_family,font_size,bold,item_font_size])
         self.ItemView = QtWidgets.QListWidget()
         self.ItemView.setStyleSheet(f"background-color:{color};color:#fc8289;font-family:{font_family};font-size:{item_font_size}pt;")
         self.setView(self.ItemView)
         self.setModel(self.ItemView.model())
-        self.addItems(list(data.music.keys()))
+        self.update_items(list(data.music.keys()))
+        self.setCurrentText(list(data.music.keys())[0])
         if len(geometry) == 4:
             self.setGeometry(*geometry)
         if Music.playlist in list(data.music.keys()):
@@ -308,7 +305,7 @@ class Choose(QtWidgets.QCheckBox):
 
     def Check(self):
         data.Todo[self.text()]["type"] = int(self.isChecked()) + 1
-        data.write(True)
+        data.write("Todo")
         if calendar.selectedDate().toString("yyyy-MM-dd") == self.Data.get_date():
             show_todo()
 
@@ -340,12 +337,12 @@ class Choose(QtWidgets.QCheckBox):
             if Type == "change" and e1.text() != self.text():
                 del data.Todo[self.text()]
             data.Todo[e1.text()] = {"date": t1.date().toString("yyyy-MM-dd") if e != 0 else "Next","time": t1.time().toString("hh:mm:ss"),"prompt": e3.toPlainText(),"type": e,}
-            data.write(True)
+            data.write("Todo")
             rel()
 
         def delete():
             del data.Todo[self.text()]
-            data.write(True)
+            data.write("Todo")
             rel()
 
         def cancel():
@@ -477,7 +474,7 @@ class ShowEvents(Button):
             label.show()
     def delete(self,a0: QMouseEvent|None=None):
         del data.date[self.text()]
-        data.write()
+        data.write("date")
         p = Page.cal.selectedDate()
         c = calendar.selectedDate()
         if c.addDays(1-c.dayOfWeek()) == p.addDays(1-p.dayOfWeek()):
@@ -520,7 +517,7 @@ class ShowEvents(Button):
                     "rings": e4.toPlainText().split("\n"),
                     "prompt":e3.toPlainText()
                 }
-                data.write()
+                data.write("date")
                 reload_page()
 
         def delete():
@@ -732,7 +729,7 @@ class NoTitleWidget(WID):
     def mouseReleaseEvent(self, a0):
         self.moveFlag = False
         data.window[self.text] = [self.pos().x(), self.pos().y()]
-        data.write()
+        data.write("window")
         a0.accept()
 
 
@@ -759,7 +756,7 @@ class TopWin(WID):
         self.moveFlag = False
         self.setCursor(Qt.CursorShape.ArrowCursor)
         data.page[self.text] = [self.pos().x(), self.pos().y()]
-        data.write()
+        data.write("page")
         a0.accept()
 
 class MusicPlayer:
@@ -821,7 +818,7 @@ class MusicPlayer:
 
     def play(self, song: str):
         V_play.set(-1)
-        url = QtCore.QUrl.fromLocalFile(song)
+        url = QUrl.fromLocalFile(song)
         self.media.setSource(url)
         self.media.play()
         self.audio.setVolume(Page.ClockVolume / 100)
@@ -857,12 +854,12 @@ class MusicPlayer:
                 if self.mode != "one_infinite":
                     self.play_num = (self.play_num + 1 if self.play_num < len(li) - 1 else 0)
                     data.music[self.playlist]["Number"] = self.play_num
-                    data.write()
+                    data.write("music")
                 listbox.setCurrentRow(self.play_num)
                 song = f"{data.set['MusicDir']}\\{li[self.play_num]}.mp3"
                 self.song.set(li[self.play_num])
                 self.reset_slide(MP3(song).info.length)
-                self.media.setSource(QtCore.QUrl.fromLocalFile(song))
+                self.media.setSource(QUrl.fromLocalFile(song))
                 self.media.setPosition(pos)
                 self.media.play()
             self.play_already+=int(self.play_already < 2)
@@ -884,7 +881,7 @@ class MusicPlayer:
     def stop_list(self):
         if self.states != "stop":
             data.music[self.playlist]["Position"] = self.media.position()
-            data.write()
+            data.write("music")
             V_play.set(0)
             self.states = "stop"
             self.play_already=2
@@ -910,30 +907,31 @@ class MusicPlayer:
 
 
 class Json_Data(object):
-    __slots__ = ["Todo", "Class", "music", "learn", "set", "window", "page", "color", "style","exe", "date"]
+    __slots__ = ["Todo", "Class", "music", "learn", "set", "window", "page", "color", "style","exe", "date","bookmark"]
+    
     def __init__(self):
-        with open(path+"todo.json",encoding="UTF-8") as r:
-            self.Todo:dict[str,dict]=dict(json.load(r))
-        with open(path+"homework.json", encoding="UTF-8") as r:
-            tem_dic = dict(json.load(r))
-            self.Class:dict[str,int|list] = tem_dic["Class"]
-            self.music:dict[str,int|list] = tem_dic["music"]
-            self.learn:dict[str,str] = tem_dic["learn"]
-            self.set:dict = tem_dic["set"]
-            self.window:dict[str,list] = tem_dic["window"]
-            self.page:dict[str,list] = tem_dic["page"]
-            self.color:list[dict] = tem_dic["color"]
-            self.style:list[dict] = tem_dic["style"]
-            self.exe:list[dict] = tem_dic["exe"]
-            self.date:dict[str,dict] = tem_dic["date"]
-    def write(self,todo=False):
-        obj = {"Class":self.Class, "music":self.music, "learn":self.learn, "set":self.set, "window":self.window, "page":self.page, "color":self.color, "style":self.style,"exe":self.exe,"date":self.date}
-        with open(path+"homework.json", "w", encoding="UTF-8") as r:
-            json.dump(obj, r)
-        if todo:
-            with open(path+"todo.json", "w", encoding="UTF-8") as r1:
-                json.dump(self.Todo, r1)
-
+        self.Todo:dict[str,dict]=self.get("Todo")
+        self.Class:dict[str,int|list] = self.get("Class")
+        self.music:dict[str,int|list] = self.get("music")
+        self.learn:dict[str,str] = self.get("learn")
+        self.set:dict = self.get("set")
+        self.window:dict[str,list] = self.get("window")
+        self.page:dict[str,list] = self.get("page")
+        self.color:list[dict] = self.get("color")
+        self.style:list[dict] = self.get("style")
+        self.exe:list[dict] = self.get("exe")
+        self.date:dict[str,dict] = self.get("date")
+        self.bookmark:dict[str,str] = self.get("bookmark")
+    def write(self,key:data_type):
+        with open(f"{path}json\\{key}.json", "w", encoding="UTF-8") as r:
+            json.dump(self.__getattribute__(key), r)
+    def get(self,key:data_type) -> dict|list:
+        with open(f"{path}json\\{key}.json",encoding="UTF-8") as r:
+            d = json.load(r)
+        return d
+    def write_all(self):
+        for i in self.__slots__:
+            self.write(i)
 
 class Interaction:
     __slots__ = ["time","timer","ctime","count","win_bool","show"]
@@ -1125,7 +1123,7 @@ class Page_Organize:
                     if len(list(filter(lambda x:text==x["text"],data.exe)))==1:
                         data.exe.pop(num)
                     data.exe.insert(entry_num.currentIndex(),{"text":entry_text.text(),"exec": entry_exec.text(),"icon": entry_icon.text(),"width":width,"height":height})
-                    data.write()
+                    data.write("exe")
                     window.destroy(True,True)
                     sip.delete(window)
                     self.refresh_func()
@@ -1133,7 +1131,7 @@ class Page_Organize:
                 o=list(filter(lambda x:text==x["text"],data.exe))
                 if len(o)==1:
                     data.exe.pop(data.exe.index(o[0]))
-                    data.write()
+                    data.write("exe")
                     Page.addiction()
                 window.destroy(True,True)
                 sip.delete(window)
@@ -1176,7 +1174,7 @@ class Page_Organize:
                 height = int(entry_y.text())
                 if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()] and 0 not in [width,height]:
                     data.exe.insert(entry_num.currentIndex(),{"text":entry_text.text(),"exec": entry_exec.text(),"icon": entry_icon.text(),"width":width,"height":height})
-                    data.write()
+                    data.write("exe")
                     sip.delete(window)
                     Page.destroy_page("addiction")
                     Page_Organize.But.refresh_func()
@@ -1231,7 +1229,8 @@ class Page_Organize:
 
     def destroy_page(self, page: page_type):
         if page in self.page:
-            sip.delete(self.page.pop(page))
+            if not sip.isdeleted(top_win := self.page.pop(page)):
+                sip.delete(top_win)
             if page == "addiction":
                 del_func_1000(f"Page_Organize addiction after:{id(self)}")
                 V_time.delete(self.mini_dict["time"])
@@ -1419,22 +1418,20 @@ class Page_Organize:
         def add_func():
             if (j := inter.AskStr("加入\n標題: "))[1]and j[0] not in data.learn and j[0] != "Class":
                 data.learn[j[0]] = {}
-                data.write()
-                lrn_but.clear()
-                lrn_but.addItems(list(data.learn.keys()) + ["Class"])
+                data.write("learn")
+                lrn_but.update_items(list(data.learn.keys()) + ["Class"])
 
         def rename_func():
             if (j := inter.AskStr("重新命名\n新標題:"))[1] and lrn_but.currentText() in data.learn:
                 data.learn[j[0]] = data.learn.pop(lrn_but.currentText())
-                data.write()
-                lrn_but.clear()
-                lrn_but.addItems(list(data.learn.keys()) + ["Class"])
+                data.write("learn")
+                lrn_but.update_items(list(data.learn.keys()) + ["Class"])
 
         def delete_func():
             c = lrn_but.currentText()
             if c in data.learn and MessageBox.question(main_window, "today's homework!!!", f"你確定要刪除這個字典嗎?\n{c}"):
                 del data.learn[c]
-                data.write()
+                data.write("learn")
                 lrn_but.removeItem(lrn_but.currentIndex())
 
         def search_func():
@@ -1453,9 +1450,8 @@ class Page_Organize:
             if (m := inter.filename("*.txt",path)) and (s := inter.AskStr("開啟\n新的標題:"))[1] and s not in data.learn and s != "Class":
                 with open(m, encoding="UTF-8") as w:
                     data.learn[s[0]] = inter.split(w.read().split("\n"))
-                    data.write()
-                lrn_but.clear()
-                lrn_but.addItems(list(data.learn.keys()) + ["Class"])
+                    data.write("learn")
+                lrn_but.update_items(list(data.learn.keys()) + ["Class"])
 
         def trans_func():
             if lrn_but.currentText() in data.learn and len(s1 := lrn_t1.toPlainText()) == len(s2 := lrn_t2.toPlainText()):
@@ -1465,15 +1461,14 @@ class Page_Organize:
         def ADD():
             if (m := inter.AskStr("加入\n標題:"))[1] and m not in data.Class:
                 data.Class[m[0]] = []
-                data.write()
-                lrn_but2.clear()
-                lrn_but2.addItems(list(data.Class.keys()))
+                data.write("Class")
+                lrn_but2.update_items(list(data.Class.keys()))
 
         def DELETE():
             c = lrn_but2.currentText()
             if c in data.Class and MessageBox.question(main_window, "today's homework!!!", f"你確定要刪除這個字典嗎?\nClass-{c}"):
                 del data.Class[c]
-                data.write()
+                data.write("Class")
                 lrn_but2.removeItem(lrn_but2.currentIndex())
 
         def Class():
@@ -1495,7 +1490,7 @@ class Page_Organize:
                     MessageBox.warning(main_window, "today's homework!!!","第一行應為整數！")
             else:
                 data.Class[c] = n
-            data.write()
+            data.write("Class")
 
         def lear():
             so = dict(data.learn[lrn_but.currentText()])
@@ -1519,7 +1514,7 @@ class Page_Organize:
                 MessageBox.warning(main_window, "today's homework!!!", "有重複的單字")
             else:
                 data.learn[lrn_but.currentText()] = {x: y for (x, y) in list(zip(s1, s2))}
-                data.write()
+                data.write("learn")
 
         win = self.add_win("learn", main_window, x=600, y=460)
         t = f"rgba({', '.join(map(str,color_alpha+[0.56]))})"
@@ -1610,14 +1605,14 @@ class Page_Organize:
             f = "\\" if "\\" in data.set["ClockMusic"] else "/"
             if file := inter.filename("*.mp3",f.join(data.set["ClockMusic"].split(f)[:-1])):
                 data.set["ClockMusic"] = file
-                data.write()
+                data.write("set")
                 t0.setText(file)
 
         def set_DictTxt():
             f = "\\" if "\\" in data.set["DictTxt"] else "/"
             if file := inter.filename("*.txt",f.join(data.set["DictTxt"].split(f)[:-1])):
                 data.set["DictTxt"] = file
-                data.write()
+                data.write("set")
                 t1.setText(file)
 
         def set_MusicDir():
@@ -1625,7 +1620,7 @@ class Page_Organize:
             if file := inter.filename("*.mp3",f.join(data.set["MusicDir"].split(f)[:-1])):
                 Music.stop_list()
                 data.set["MusicDir"] = file
-                data.write()
+                data.write("set")
                 t2.setText(file)
 
         def set_Background_file():
@@ -1633,7 +1628,7 @@ class Page_Organize:
             file = inter.filename("JPEG (*.jpg *.jpeg *jpe *.jfif);;PNG (*png);;All (*.*)",f.join(data.set["Background"].split(f)[:-1]))
             if len(file) > 0:
                 data.set["Background"] = file
-                data.write()
+                data.write("set")
                 t3.setText(file)
                 background_blur_show(file)
 
@@ -1642,7 +1637,7 @@ class Page_Organize:
             file = inter.filename("dir",f.join(data.set["Background"].split(f)[:-1]))
             if len(file) > 0:
                 data.set["Background"] = file
-                data.write()
+                data.write("set")
                 t3.setText(file)
                 background_blur_show(file+"/"+random.choice(os.listdir(file)))
         def set_background_blur():
@@ -1854,6 +1849,108 @@ class Page_Organize:
         self.mini_dict.update(time=time,date=date,combo=comb,mode=mode,timer=Timer_l1)
         win.show()
 
+    def exe(self):
+        global WebWidget,web_url
+
+        def load_url():
+            web_url.setUrl(url_input.text())
+            WebWidget.load(web_url)
+            check()
+
+        def last_url():
+            WebWidget.back()
+            web_url.setUrl(WebWidget.url().url())
+            check()
+        def next_url():
+            WebWidget.forward()
+            web_url.setUrl(WebWidget.url().url())
+            check()
+
+        def destroy_web():
+            global web_url
+            web_url = QUrl(WebWidget.url().url())
+            win.setVisible(False)
+        def resize_it():
+            pos = inter.AskStr("大小多少？ (寬x高)")
+            if pos[1]:
+                x,y, = list(map(int,pos[0].split("x")))
+                win.resize(x,y)
+                l.resize(x,75)
+                destroy_button.move(x-40,0)
+                url_input.resize(x-30,30)
+                WebWidget.resize(x,y-60)
+                load_button.move(x-30,30)
+        def url_refresh():
+            global web_url
+            web_url = WebWidget.url()
+            url_input.setText(web_url.url())
+            check()
+        def bookmark_add():
+            name=inter.AskStr("bookmark name: ")
+            if not name[0] in data.bookmark and name[1]:
+                data.bookmark.update({name[0]:WebWidget.url().url()})
+                print(list(data.bookmark.keys()))
+                bookmark.update_items(["無"]+list(data.bookmark.keys()))
+                data.write("bookmark")
+                check()
+        def bookmark_delete():
+            data.bookmark.pop(bookmark.currentText())
+            data.write("bookmark")
+            check()
+        def bookmark_rename():
+            name=inter.AskStr("bookmark name: ")
+            if not name in data.bookmark:
+                data.bookmark.update({name:data.bookmark.pop(bookmark.text())})
+                bookmark.update_items(["無",*list(data.bookmark.keys())])
+                data.write("bookmark")
+                check()
+        def bookmark_get():
+            if bookmark.currentText() in data.bookmark:
+                web_url.setUrl(data.bookmark[bookmark.currentText()])
+                WebWidget.load(web_url)
+                check()
+        def check():
+            boolean = web_url.url() in data.bookmark.values()
+            if boolean:
+                b = list(filter(lambda x:data.bookmark[x]==web_url.url(),data.bookmark))
+                bookmark.setCurrentText(b[0])
+            else:
+                bookmark.setCurrentText("無")
+            rename.setVisible(boolean)
+            delete.setVisible(boolean)
+            add.setVisible(not boolean)
+
+        win = self.add_win("exe",None,x=500,y=400)
+        win.setWindowFlags(types.SubWindow|types.FramelessWindowHint)
+        win.setAttribute(Attribute.WA_TranslucentBackground,True)
+        l=Label(win,[0,0,500,75],"",style=f"background-color:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);border-radius:15px;")
+        l.show()
+        destroy_button=Button(win,[460,0,30,30],destroy_web,"x",style="background:transparent;color:#fc8289;")
+        destroy_button.show()
+        text_style=f"background-color:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);color:#fc8289;font-family:Arial;font-weight:bold;font-size:"
+        url_input = Entry(win,text_style+"15pt;",[0,30,470,30],web_url.url())
+        url_input.show()
+        load_button=Button(win,[470,30,30,30],load_url,"GO!",style=text_style+"13pt;")
+        load_button.show()
+        WebWidget=QtWebEngineWidgets.QWebEngineView(win)
+        WebWidget.resize(500, 340)
+        WebWidget.move(0,60)
+        WebWidget.load(web_url)
+        WebWidget.setVisible(True)
+        WebWidget.urlChanged.connect(url_refresh)
+        Button(win,[20,0,30,30],last_url,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
+        Button(win,[55,0,30,30],lambda:WebWidget.reload(),image=QIcon(f"{path}home\\refresh.png"),style="background:transparent;").show()
+        Button(win,[90,0,30,30],next_url,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
+        Button(win,[125,0,60,30],resize_it,"resize","background:transparent;color:#fc8289;").show()
+        bookmark = Combobox(win,"QComboBox{background-color:transparent;color:#fc8289;}",["無",*list(data.bookmark.keys())],[190,0,90,30])
+        bookmark.currentTextChanged.connect(bookmark_get)
+        bookmark.show()
+        add = Button(win,[280,0,40,30],bookmark_add,"add",style="background:transparent;color:#fc8289;")
+        rename = Button(win,[280,0,60,30],bookmark_rename,"rename",style="background:transparent;color:#fc8289;")
+        delete = Button(win,[340,0,60,30],bookmark_delete,"delete",style="background:transparent;color:#fc8289;")
+        check()
+        win.setVisible(False)
+
 
 class TextEdit(QtWidgets.QTextEdit):
     def __init__(self, master, *geometry):
@@ -1975,7 +2072,7 @@ def double_clicked():
     if combo.currentText() in data.music and listbox.currentItem()!=None and Music.play_already == 2:
         Music.stop()
         data.music[combo.currentText()]["Number"] = listbox.currentRow()
-        data.write()
+        data.write("music")
         Music.play_list_start()
 
 
@@ -2006,7 +2103,7 @@ def music_play():
     if Music.states == "stop":
         if len(listbox.selectedIndexes()) == 1:
             data.music[combo.currentText()]["Number"] = listbox.selectedIndexes()[0].row()
-            data.write()
+            data.write("music")
         Music.play_list_start()
     elif Music.states == "play":
         Music.pause_list()
@@ -2022,7 +2119,7 @@ def add_music():
         elif listbox.count()==0:
             n=0
             data.music[combo.currentText()]["list"][0] = c[0]
-        data.write()
+        data.write("music")
         listbox.insertItem(n + 1, c[0])
 
 
@@ -2037,31 +2134,29 @@ def edit_func(text: str):
 def add_list():
     if (m := inter.AskStr("新增播放清單 名稱為："))[1] and m not in data.music:
         data.music[m[0]] = {"Number": 0, "Position":0, "list": []}
-        data.write()
-        combo.clear()
-        combo.addItems(list(data.music.keys()))
+        data.write("music")
+        combo.update_items(list(data.music.keys()))
 
 
 def delete_list():
     if combo.currentText() in data.music and MessageBox.question(main_window, "today's homework!!!", f"你確定要刪除這個播放清單嗎?\n{combo.currentText()}")< 50000:
         del data.music[combo.currentText()]
-        data.write()
+        data.write("music")
         key = data.music.keys()
-        combo.clear()
-        combo.addItems(list(key))
+        combo.update_items(list(key))
 
 
 def edit():
     def add_func():
         if combobox.currentText() in Music.music_list:
             data.music[combo.currentText()]["list"][i] = combobox.currentText()
-            data.write()
+            data.write("music")
         ma.deleteLater()
         edit_func(combo.currentText())
     
     def del_func():
         del data.music[combo.currentText()]["list"][i]
-        data.write()
+        data.write("music")
         ma.deleteLater()
         edit_func(combo.currentText())
     
@@ -2253,6 +2348,8 @@ main_window.destroyed.connect(destroyed)
 main_window.mousePressEvent = main_window_clicked
 main_window.setWindowTitle(data_set["title"])
 main_window.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnBottomHint|types.MaximizeUsingFullscreenGeometryHint)
+WebWidget = None
+web_url = QUrl("https://www.google.com/")
 if data_set["cursor"]!="":
     pixmap = QPixmap(data_set["cursor"])
     pixmap = pixmap.scaled(30, 30)
@@ -2279,16 +2376,18 @@ V_time.add(WLtime)
 WLdate = Label(main_window,[0, 43, 250, 20],text=" ",style=style0 + "text-decoration:underline; font-size:15pt;",)
 WLdate.setAlignment(align.AlignCenter)
 V_date.add(WLdate)
-g1 = NoTitleWidget(main_window,"page",270,50)
+g1 = NoTitleWidget(main_window,"page",320,50)
 Label(g1,[2,15,6,20],style=f"background:{color2};",text=" ")
-Label(g1,[0,0,270,50],style=f"background:rgba({', '.join(map(str,color_alpha))}, 0.6);border-radius:25px;")
+Label(g1,[0,0,320,50],style=f"background:rgba({', '.join(map(str,color_alpha))}, 0.6);border-radius:25px;")
 button_style=f"QPushButton {{background:{color};color:{color_bg};border-radius:5px;border:1px solid {color_bg};}} QPushButton:hover {{color:{color_bg};background:rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]}, 0.4);}}"
 Button(g1,[10, 0, 50, 50],lambda: Page.todo(),image=QIcon(f"{path}icon\\todo.png"),style="background:transparent;").show()
 Button(g1,[60, 0, 50, 50],lambda: Page.dic(),image=QIcon(f"{path}icon\\dict.png"),style="background:transparent;").show()
 Button(g1,[110, 0, 50, 50],lambda: Page.learn(),image=QIcon(f"{path}icon\\learn.png"),style="background:transparent;").show()
-Button(g1,[160, 0, 50, 50],lambda: Page.classes(),image=QIcon(f"{path}icon\\class.png"),style="background:transparent;border-radius:25px;").show()
-Button(g1,[210, 10, 30, 30],lambda: Page.set(),image=QIcon(f"{path}icon\\set.png"),style=style0,).show()
-Button(g1,[240, 10, 30, 30],lambda: Page.addiction(),text="⿻",style="font-family:Arial;color:#d48649;background-color: transparent;font-size:29px;",).show()
+Button(g1,[160, 0, 50, 50],lambda: Page.classes(),image=QIcon(f"{path}icon\\class.png"),style="background:transparent;").show()
+Button(g1,[210, 0, 50, 50],lambda: Page.page["exe"].setVisible(True),image=QIcon(f"{path}icon\\exec.png"),style="background:transparent;").show()
+Button(g1,[260, 10, 30, 30],lambda: Page.set(),image=QIcon(f"{path}icon\\set.png"),style=style0,).show()
+Button(g1,[290, 10, 30, 30],lambda: Page.addiction(),text="⿻",style="font-family:Arial;color:#d48649;background-color: transparent;font-size:29px;",).show()
+Page.exe()
 Button(main_window, [m.width() - 42, 0, 20, 20], main_window.showMinimized, text="-").show()
 Button(main_window, [m.width() - 20, 0, 20, 20], destroy, text="x").show()
 WeatherWin = WID(main_window,f"background:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.8);",0,70,250,180)
