@@ -753,10 +753,11 @@ class TopWin(WID):
             a0.accept()
 
     def mouseReleaseEvent(self, a0: QMouseEvent):
-        self.moveFlag = False
-        self.setCursor(Qt.CursorShape.ArrowCursor)
-        data.page[self.text] = [self.pos().x(), self.pos().y()]
-        data.write("page")
+        if self.moveFlag:
+            self.moveFlag = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            data.page[self.text] = [self.x(), self.y()]
+            data.write("page")
         a0.accept()
 
 class MusicPlayer:
@@ -1218,7 +1219,7 @@ class Page_Organize:
         self.mini_dict:dict[Literal["time","date","combo","mode","timer","wid_exe","scr_exe"],Label|Button|Combo|WID]={}
         self.cal = None
 
-    def add_win(self,page: page_type,parent: QtWidgets.QMainWindow | None = None,color="transparent",x=0,y=0,):
+    def add_win(self,page: page_type,parent: QtWidgets.QMainWindow | None = None,color="transparent",x=0,y=0,) -> TopWin:
         if page in self.page:
             self.destroy_page(page)
         self.page[page] = TopWin(parent, page, color, x, y)
@@ -1712,9 +1713,6 @@ class Page_Organize:
             clicked_label.add(win,a0.pos())
             a0.accept()
 
-        def mouse(a0):
-            a0.accept()
-
         def after():
             """Page_Organize addiction after:{id(self)}"""
             label_battery.setText(f"{psutil.sensors_battery().percent}%")
@@ -1767,11 +1765,11 @@ class Page_Organize:
 
         win = self.add_win("addiction",x=230,y=100)
         win.setAttribute(Attribute.WA_TranslucentBackground, True)
-        win.mouseMoveEvent = mouse
+        win.mouseMoveEvent = lambda a0:a0.accept()
         win.mousePressEvent = click
         win.setGeometry(m.width()-200,0,230,m.height())
         win.setWindowOpacity(0.7)
-        win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.Sheet|types.Tool|types.SubWindow)
+        win.setWindowFlags(types.FramelessWindowHint|types.WindowStaysOnTopHint|types.SubWindow)
         win_all_label = Label(win, [30, 0, 200, m.height()], "", style=f"background-color:{color};border:none;border-top-left-radius:15px;border-bottom-left-radius:15px;")
         time = Label(win,[30, 0, 200, 30],text=V_time.get(),style="background-color:#00000000;color:#FFAEC9;font-family:Arial Rounded MT Bold;font-size:28pt;font-weight:bold;",)
         time.setAlignment(align.AlignCenter)
@@ -1860,7 +1858,6 @@ class Page_Organize:
             web_url.setUrl(url_input.text())
             WebWidget.load(web_url)
             check()
-
         def last_url():
             WebWidget.back()
             web_url.setUrl(WebWidget.url().url())
@@ -1869,21 +1866,34 @@ class Page_Organize:
             WebWidget.forward()
             web_url.setUrl(WebWidget.url().url())
             check()
-
+        def maximum_web():
+            nonlocal x,y
+            rect = QtCore.QRect(0,0,m.width(),m.height())
+            if win.geometry() != rect:
+                win.move(0,0)
+                resize(m.width(),m.height())
+                l.setGeometry(0,-15,m.width(),90)
+            else:
+                win.move(*data.page["exe"])
+                resize(x,y)
         def destroy_web():
             global web_url
             web_url = QUrl(WebWidget.url().url())
             win.setVisible(False)
+        def resize(x:int,y:int):
+            win.resize(x,y)
+            l.setGeometry(0,0,x,75)
+            destroy_button.move(x-40,0)
+            max_button.move(x-75,0)
+            url_input.resize(x-30,30)
+            WebWidget.resize(x,y-60)
+            load_button.move(x-30,30)
         def resize_it():
-            pos = inter.AskStr("大小多少？ (寬x高)")
+            nonlocal x,y
+            pos = inter.AskStr(f"大小多少？ (寬x高)\n目前: {win.width()}x{win.height()}")
             if pos[1]:
                 x,y, = list(map(int,pos[0].split("x")))
-                win.resize(x,y)
-                l.resize(x,75)
-                destroy_button.move(x-40,0)
-                url_input.resize(x-30,30)
-                WebWidget.resize(x,y-60)
-                load_button.move(x-30,30)
+                resize(x,y)
         def url_refresh():
             global web_url
             web_url = WebWidget.url()
@@ -1924,13 +1934,17 @@ class Page_Organize:
             delete.setVisible(boolean)
             add.setVisible(not boolean)
 
-        win = self.add_win("exe",None,x=500,y=400)
-        win.setWindowFlags(types.SubWindow|types.FramelessWindowHint)
+        x=500
+        y=400
+        win = self.add_win("exe",x=x,y=y)
+        win.setWindowFlags(types.FramelessWindowHint|types.SubWindow)
         win.setAttribute(Attribute.WA_TranslucentBackground,True)
         l=Label(win,[0,0,500,75],"",style=f"background-color:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);border-radius:15px;")
         l.show()
-        destroy_button=Button(win,[460,0,30,30],destroy_web,"x",style="background:transparent;color:#fc8289;")
+        destroy_button=Button(win,[460,0,30,30],destroy_web,"x")
         destroy_button.show()
+        max_button=Button(win,[425,0,30,30],maximum_web,"▭")
+        max_button.show()
         text_style=f"background-color:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);color:#fc8289;font-family:Arial;font-weight:bold;font-size:"
         url_input = Entry(win,text_style+"15pt;",[0,30,470,30],web_url.url())
         url_input.show()
