@@ -761,7 +761,7 @@ class TopWin(WID):
         a0.accept()
 
 class MusicPlayer:
-    __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration"]
+    __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration","music_slider","clock_slider"]
     State = Literal["stop", "play", "pause"]
 
     def __init__(self):
@@ -777,7 +777,31 @@ class MusicPlayer:
         self.timer = QTimer()
         self.timer.timeout.connect(lambda: self.update_slide())
         self.button_dict: dict[Literal["1", "music"], Button] = {}
-        self.slider = []
+        self.slider:list[Slider] = []
+        self.music_slider:dict[Literal["addiction","set"], Slider] = {}
+        self.clock_slider:dict[Literal["addiction","set"], Slider] = {}
+
+    def add_music_slider(self,key:Literal["addiction","set"],music_slider:Slider,clock_slider:Slider):
+        self.music_slider.update({key:music_slider})
+        self.clock_slider.update({key:clock_slider})
+    def music_slider_change(self,key:Literal["addiction","set"]):
+        volume = self.music_slider[key].value()
+        Page.MusicVolume = volume
+        if key == "addiction" and "set" in self.music_slider:
+            self.music_slider["set"].setValue(volume)
+        elif "addiction" in self.music_slider:
+            self.music_slider["addiction"].setValue(volume)
+        if V_play.get() == 1:
+            Music.audio.setVolume(volume / 100)
+    def clock_slider_change(self,key:Literal["addiction","set"]):
+        volume = self.clock_slider[key].value()
+        Page.ClockVolume = volume
+        if key == "addiction" and "set" in self.clock_slider:
+            self.clock_slider["set"].setValue(volume)
+        elif "addiction" in self.clock_slider:
+            self.clock_slider["addiction"].setValue(volume)
+        if V_play.get() == -1:
+            Music.audio.setVolume(volume / 100)
 
     def add_slider(self, slider):
         if type(slider) == Slider:
@@ -1237,6 +1261,9 @@ class Page_Organize:
                 Music.slider.pop()
                 Music.show_duration.widget.pop()
                 self.mini_dict={}
+            if page in ["addiction","set"]:
+                Music.music_slider.pop(page)
+                Music.clock_slider.pop(page)
 
     def todo(self,select_date:date|None=None):
         def clicked():
@@ -1567,18 +1594,12 @@ class Page_Organize:
             V_state.set(dark_scale.value())
 
         def set_m():
-            volume = m_scale.value()
-            self.MusicVolume = volume
-            m_label.setText(f"Music Volume {volume}%")
-            if V_play.get() == 1:
-                Music.audio.setVolume(volume / 100)
+            m_label.setText(f"Music Volume {m_scale.value()}%")
+            Music.music_slider_change("set")
 
         def set_c():
-            volume = c_scale.value()
-            self.ClockVolume = volume
-            c_label.setText(f"Clock Volume {volume}%")
-            if V_play.get() == -1:
-                Music.audio.setVolume(volume / 100)
+            c_label.setText(f"Clock Volume {c_scale.value()}%")
+            Music.clock_slider_change("set")
         def set_music_rate():
             rate = m_rate_scale.value()/100
             self.MusicRate = rate
@@ -1672,6 +1693,7 @@ class Page_Organize:
         c_label = Label(wid,[0, 60, 140, 20],text=f"Clock Volume {self.ClockVolume}%",style=style_label)
         c_scale = Slider(wid, 140, 60, 160, 30)
         c_scale.setting([0, 100],self.ClockVolume,set_c)
+        Music.add_music_slider("set",m_scale,c_scale)
         m_rate_label = Label(wid,[0, 90, 140, 20],text=f"Music Rate {self.MusicRate}",style=style_label)
         m_rate_scale = Slider(wid, 140, 90, 160, 30)
         m_rate_scale.setting([50, 200],int(self.MusicRate*100),set_music_rate)
@@ -1757,9 +1779,17 @@ class Page_Organize:
                 else:
                     width+=max_x-10
                 num+=1
-            scr_exe=WID_Todo(win,wid_exe,"background:#00000000;border:none;",[30,215+win_battery.height(),200,300])
+            scr_exe=WID_Todo(win,wid_exe,"background:#00000000;border:none;",[30,255+win_battery.height(),200,300])
             scr_exe.show()
             self.mini_dict.update(wid_exe=wid_exe,scr_exe=scr_exe)
+
+        def set_m():
+            m_label.setText(f"Music Volume {m_scale.value()}%")
+            Music.music_slider_change("addiction")
+
+        def set_c():
+            c_label.setText(f"Clock Volume {c_scale.value()}%")
+            Music.clock_slider_change("addiction")
 
         win = self.add_win("addiction",x=230,y=100)
         win.setAttribute(Attribute.WA_TranslucentBackground, True)
@@ -1795,7 +1825,35 @@ class Page_Organize:
         mode = Button(win,[160, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
         mode.LeftCommand=lambda:set_play_mode(mode)
         mode.show()
-        Timer_Win = WID(win,"background:#00000000;",30,135,200,60)
+        scale_style = f"""
+        QSlider::groove:horizontal {{
+            height: 20px;border-radius: 10px;background: {color};
+        }}
+        QSlider::handle:horizontal{{
+            background: {colors['normal-bg']};width: 20px;height: 20px;margin: 0px 0;border-radius: 10px;
+        }}
+        QSlider::sub-page:horizontal{{
+            border-radius: 10px;background:#d48649;
+        }}
+        QSlider {{
+            background: transparent;border-radius: 10px;
+        }}"""
+        m_scale = Slider(win, 40, 135, 180, 30)
+        m_label = Label(m_scale,[10, 0, 170, 30],text=f"Music Volume {self.MusicVolume}%",style=f"background:transparent;color:{color2};font-family:Arial;font-size:12pt;")
+        m_label.setAttribute(Attribute.WA_TransparentForMouseEvents,True)
+        m_scale.setStyleSheet(scale_style)
+        m_scale.setting([0,100],self.MusicVolume,set_m)
+        c_scale = Slider(win, 40, 165, 180, 30)
+        c_label = Label(c_scale,[10, 0, 170, 30],text=f"Clock Volume {self.ClockVolume}%",style=f"background:transparent;color:{color2};font-family:Arial;font-size:12pt;")
+        c_label.setAttribute(Attribute.WA_TransparentForMouseEvents,True)
+        c_scale.setting([0, 100],self.ClockVolume,set_c)
+        c_scale.setStyleSheet(scale_style)
+        Music.add_music_slider("addiction" ,m_scale,c_scale)
+        m_label.show()
+        m_scale.show()
+        c_label.show()
+        c_scale.show()
+        Timer_Win = WID(win,"background:#00000000;",30,195,200,60)
         Timer_l1 = Label(Timer_Win, [0, 0, 200, 35], text=inter.show.get(), style=f"background-color:rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]}, 0.78);font-family:Arial;font-size:26pt;font-weight:bold;color:#d48649")
         Timer_l1.setAlignment(align.AlignRight)
         inter.show.add(Timer_l1)
@@ -1803,7 +1861,7 @@ class Page_Organize:
         button_count.show()
         Button(Timer_Win,[95, 35, 25, 25],lambda: inter.set_win(),image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
         Timer_Win.show()
-        win_battery = WID(win,"background:#00000000;",30,195,200,120)
+        win_battery = WID(win,"background:#00000000;",30,255,200,120)
         co = ",".join(map(str, color_alpha))
         s = "color:%s;background:rgba("+co+",0.5);font-family:Arial;font-size:17pt;"
         progress_style = "QProgressBar {background: rgba("+co+",0.5);border: none;} QProgressBar::chunk {background: %s;}"
@@ -1926,25 +1984,27 @@ class Page_Organize:
             rename.setVisible(boolean)
             delete.setVisible(boolean)
             add.setVisible(not boolean)
+        def browser():
+            webbrowser.open(url_input.text())
 
-        x=500
+        x=600
         y=400
         win = self.add_win("exe",x=x,y=y)
         win.setWindowFlags(types.FramelessWindowHint|types.SubWindow)
         win.setAttribute(Attribute.WA_TranslucentBackground,True)
-        l=Label(win,[0,0,500,75],"",style=f"background-color:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);border-radius:15px;")
+        l=Label(win,[0,0,600,75],"",style=f"background-color:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);border-radius:15px;")
         l.show()
-        destroy_button=Button(win,[460,0,30,30],destroy_web,"x")
+        destroy_button=Button(win,[560,0,30,30],destroy_web,"x")
         destroy_button.show()
-        max_button=Button(win,[425,0,30,30],maximum_web,"▭")
+        max_button=Button(win,[525,0,30,30],maximum_web,"▭")
         max_button.show()
         text_style=f"background-color:rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);color:#fc8289;font-family:Arial;font-weight:bold;font-size:"
-        url_input = Entry(win,text_style+"15pt;",[0,30,470,30],web_url.url())
+        url_input = Entry(win,text_style+"15pt;",[0,30,570,30],web_url.url())
         url_input.show()
-        load_button=Button(win,[470,30,30,30],load_url,"GO!",style=text_style+"13pt;")
+        load_button=Button(win,[570,30,30,30],load_url,"GO!",style=text_style+"13pt;")
         load_button.show()
         WebWidget=QtWebEngineWidgets.QWebEngineView(win)
-        WebWidget.resize(500, 340)
+        WebWidget.resize(600, 340)
         WebWidget.move(0,60)
         WebWidget.load(web_url)
         WebWidget.setVisible(True)
@@ -1952,13 +2012,14 @@ class Page_Organize:
         Button(win,[20,0,30,30],last_url,image=QIcon(f"{path}home\\last.png"),style="background:transparent;").show()
         Button(win,[55,0,30,30],lambda:WebWidget.reload(),image=QIcon(f"{path}home\\refresh.png"),style="background:transparent;").show()
         Button(win,[90,0,30,30],next_url,image=QIcon(f"{path}home\\next.png"),style="background:transparent;").show()
-        Button(win,[125,0,60,30],resize_it,"resize","background:transparent;color:#fc8289;").show()
-        bookmark = Combobox(win,"QComboBox{background-color:transparent;color:#fc8289;}",["無",*list(data.bookmark.keys())],[190,0,90,30])
+        Button(win,[125,0,50,30],browser,"browse","background:transparent;color:#fc8289;").show()
+        Button(win,[175,0,50,30],resize_it,"resize","background:transparent;color:#fc8289;").show()
+        bookmark = Combobox(win,"QComboBox{background-color:transparent;color:#fc8289;}",["無",*list(data.bookmark.keys())],[230,0,90,30])
         bookmark.currentTextChanged.connect(bookmark_get)
         bookmark.show()
-        add = Button(win,[280,0,40,30],bookmark_add,"add",style="background:transparent;color:#fc8289;")
-        rename = Button(win,[280,0,60,30],bookmark_rename,"rename",style="background:transparent;color:#fc8289;")
-        delete = Button(win,[340,0,60,30],bookmark_delete,"delete",style="background:transparent;color:#fc8289;")
+        add = Button(win,[320,0,40,30],bookmark_add,"add",style="background:transparent;color:#fc8289;")
+        rename = Button(win,[320,0,60,30],bookmark_rename,"rename",style="background:transparent;color:#fc8289;")
+        delete = Button(win,[380,0,60,30],bookmark_delete,"delete",style="background:transparent;color:#fc8289;")
         check()
         win.setVisible(False)
 
