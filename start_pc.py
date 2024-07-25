@@ -248,17 +248,27 @@ def progressbar(parent: QtWidgets.QWidget | None, min=0,max=1,stylesheet="",y=0,
 
 
 class TodoData(object):
-    __slots__ = ["date", "time", "prompt", "type","win"]
-    def __init__(self, date: str, time: str, prompt: str, type:Literal[0,1,2,3]):
+    __slots__ = ["date", "time", "prompt", "type","win","Next"]
+    def __init__(self, date: str, time: str, prompt: str="", type:Literal[0,1,2,3]=1):
+        self.Next = date == "Next"
         if date == "Next":
-            dn = datetime.now()
-            self.date = [dn.year,dn.month,dn.day]
-        else:
-            self.date = list(map(int, date.split("-")))
+            date = datetime.now().strftime("%Y-%m-%d")
+        self.date = list(map(int, date.split("-")))
         self.time = list(map(int, time.split(":")))
         self.prompt = prompt
         self.type:Literal[0,1,2,3] = type
         self.win=None
+    def change(self, date: str, time: str, prompt: str="", type:Literal[0,1,2,3]=1) -> Self:
+        del self.date, self.time, self.prompt, self.type
+        self.Next = date == "Next"
+        if date == "Next":
+            date = datetime.now().strftime("%Y-%m-%d")
+        self.date = list(map(int, date.split("-")))
+        self.time = list(map(int, time.split(":")))
+        self.prompt = prompt
+        self.type:Literal[0,1,2,3] = type
+        self.win=None
+        return self
     def get_date(self) -> str:
         return "{0[0]:02d}-{0[1]:02d}-{0[2]:02d}".format(self.date)
     def get_time(self) -> str:
@@ -271,12 +281,95 @@ class TodoData(object):
         self.win = l
 
 
+class Events(object):
+    __slots__ = ["text","start_date","start_time","start_dt", "end_date", "end_time","end_dt", "prompt","rings"]
+    def __init__(self, text: str, start_date:str, start_time:str, end_date:str, end_time:str, prompt:str,rings:list[str]):
+        self.set_init(text, start_date, start_time, end_date, end_time, prompt,rings)
+    def set_init(self, text: str, start_date:str, start_time:str, end_date:str, end_time:str, prompt:str,rings:list[str]):
+        self.text=text
+        self.start_date = start_date
+        self.start_time = start_time
+        self.end_date = end_date
+        self.end_time = end_time
+        self.start_dt = datetime.strptime(start_date+" "+start_time,"%Y-%m-%d %H:%M:%S")
+        self.end_dt = datetime.strptime(end_date+" "+end_time,"%Y-%m-%d %H:%M:%S")
+        self.prompt = prompt
+        self.rings = rings
+    def change(self, text: str, start_date:str, start_time:str, end_date:str, end_time:str, prompt:str,rings:list[str]) -> Self:
+        del self.text, self.start_date, self.start_time, self.end_date, self.end_time, self.start_dt, self.end_dt, self.prompt, self.rings
+        self.set_init(text, start_date, start_time, end_date, end_time, prompt,rings)
+        return self
+    @staticmethod
+    def get_in_datetime(start_date:str,date:date, end_date:str):
+        start_dt = datetime.strptime(start_date,"%Y-%m-%d").date()
+        end_dt = datetime.strptime(end_date,"%Y-%m-%d").date()
+        return start_dt<=date<=end_dt
+    @staticmethod
+    def clock(date:datetime):
+        date1 = date-datetime.now()
+        seconds = date1.seconds+1
+        t = f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{(seconds)%60:02d}"
+        if date1.days==0:
+            return t
+        else:
+            return f"{date1.days} "+t
+
+
+class DatetimeEdit(QtWidgets.QDateTimeEdit):
+    def __init__(self,parent,y:int):
+        super().__init__(parent)
+        self.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:{color};")
+        self.setCalendarPopup(False)
+        self.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
+        self.setGeometry(0,y,240,30)
+        self.show()
+
+
+class TodoDataSet(object):
+    __slots__ = ["todo","event"]
+    def __init__(self):
+        self.todo:dict[str,TodoData] = {}
+        self.event:dict[str,Events] = []
+        list(map(lambda x:self.todo.update({x:TodoData(**data.Todo[x])}),data.Todo))
+        list(map(lambda x:self.event.update({x:Events(x,**data.date[x])}),data.date))
+    def change_todo(self,todo_name:str,new_name:str,date: str, time: str, prompt: str="", type:Literal[0,1,2,3]=1):
+        date = "Next" if type==0 else date
+        if todo_name == new_name:
+            self.todo[new_name].change(date,time,prompt,type)
+        elif todo_name in self.todo:
+            self.todo[new_name] = self.todo.pop(todo_name).change(date,time,prompt,type)
+            data.Todo.pop(todo_name)
+        else:
+            self.todo[new_name] = TodoData(date,time,prompt,type)
+    def del_todo(self,todo_name):
+        if todo_name in self.todo:
+            del self.todo[todo_name]
+            del data.Todo[self.text()]
+            data.write("Todo")
+    def change_event(self,last_text:str,new_text: str, start_date:str, start_time:str, end_date:str, end_time:str, prompt:str,rings:list[str]):
+        if last_text == new_text:
+            self.event[new_text].change(new_text,start_date,start_time,end_date,end_time,prompt,rings)
+        if last_text in data.date:
+            self.event[new_text] = self.event.pop(last_text).change(new_text,start_date,start_time,end_date,end_time,prompt,rings)
+            data.date.pop(last_text)
+        else:
+            self.event[new_text] = Events(new_text,start_date,start_time,end_date,end_time,prompt,rings)
+        data.date[new_text] = {"text":new_text,"start_date":start_date,"start_time":start_time,"end_date":end_date,"end_time":end_time,"prompt":prompt,"rings":rings}
+        data.write("date")
+    def del_event(self,text):
+        if text in self.event:
+            del self.event[text]
+            del data.date[text]
+            data.write("date")
+
+
 class Choose(QtWidgets.QCheckBox):
     el = ["每日循環", "一次", "已解決", "停用"]
     
-    def __init__(self, mas:QtWidgets.QWidget, text: str, todo_data: TodoData, y:int, visible=True,wid_todo:QtWidgets.QScrollArea|None=None):
+    def __init__(self, mas:QtWidgets.QWidget, text: str, y:int, visible=True,wid_todo:QtWidgets.QScrollArea|None=None):
         super().__init__(text,mas)
         self.mas = wid_todo
+        todo_data = todo_data_set.todo[text]
         self.setStyleSheet(f"QCheckBox {{background:#dd7aff;color:{color};font-family:Arial;font-size:20pt;border-radius:10px;}}QCheckBox:disabled {{background:{'#d48649'if todo_data.type == 0 else'#088fb7'};color:{color2};border-radius:10px;}}")
         self.move(0,y)
         self.num_list = list(map(str, range(0, 60)))
@@ -333,16 +426,14 @@ class Choose(QtWidgets.QCheckBox):
             Page.todo(p)
 
         def button_choose():
-            e = self.el.index(e4.currentText())
-            if Type == "change" and e1.text() != self.text():
-                del data.Todo[self.text()]
-            data.Todo[e1.text()] = {"date": t1.date().toString("yyyy-MM-dd") if e != 0 else "Next","time": t1.time().toString("hh:mm:ss"),"prompt": e3.toPlainText(),"type": e,}
-            data.write("Todo")
-            rel()
+            if e1.text()!="":
+                todo_data_set.change_todo(self.text(),e1.text(),t1.date().toString("yyyy-MM-dd"),t1.time().toString("hh:mm:ss"),e3.toPlainText(),self.el.index(e4.currentText()),)
+                data.Todo[e1.text()] = {"date": t1.date().toString("yyyy-MM-dd"),"time":t1.time().toString("hh:mm:ss"),"prompt":e3.toPlainText(),"type":self.el.index(e4.currentText())}
+                data.write("Todo")
+                rel()
 
         def delete():
-            del data.Todo[self.text()]
-            data.write("Todo")
+            todo_data_set.del_todo(self.text())
             rel()
 
         def cancel():
@@ -371,22 +462,12 @@ class Choose(QtWidgets.QCheckBox):
             ma.setWindowFlags(types.SubWindow)
             ma.setWindowTitle(Type if Type == "add" else f"{Type}:{self.text()}")
             e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
-            t1 = QtWidgets.QDateTimeEdit(ma)
-            t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:{color};")
-            t1.setCalendarPopup(False)
-            t1.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
-            t1.setGeometry(0, 30, 240, 30)
-            t1.show()
+            t1 = DatetimeEdit(ma,30)
             t1c = CalendarWidget(None,[page_todo[0],page_todo[1]+90,260,200],calendar_selected,calendar_style1,False)
             t1c.setWindowFlag(types.FramelessWindowHint,True)
             Button(ma,[240,30,20,30],calendar_show,text="d").show()
             Button(ma,[260,30,20,30],lambda:inter.time_show(t1),text="t").show()
-            e4 = Combobox(
-                ma,
-                f"background:{color};color:{color2};font-family:Arial;font-size:17pt;",
-                self.el,
-                [0, 60, 400, 30],
-            )
+            e4 = Combobox(ma,f"background:{color};color:{color2};font-family:Arial;font-size:17pt;",self.el,[0, 60, 400, 30],)
             e4.show()
             e3 = TextEdit(ma, 0, 90, 300, 90)
             e3.show()
@@ -408,34 +489,6 @@ class Choose(QtWidgets.QCheckBox):
             ma.show()
 
 
-class Events():
-    __slots__ = ["text","start_date","start_time","start_dt", "end_date", "end_time","end_dt", "prompt","rings"]
-    def __init__(self, text: str, start_date:str, start_time:str, end_date:str, end_time:str, prompt:str,rings:list[str]):
-        self.text=text
-        self.start_date = start_date
-        self.start_time = start_time
-        self.end_date = end_date
-        self.end_time = end_time
-        self.start_dt = datetime.strptime(start_date+" "+start_time,"%Y-%m-%d %H:%M:%S")
-        self.end_dt = datetime.strptime(end_date+" "+end_time,"%Y-%m-%d %H:%M:%S")
-        self.prompt = prompt
-        self.rings = rings
-    @staticmethod
-    def get_in_datetime(start_date:str,date:date, end_date:str):
-        start_dt = datetime.strptime(start_date,"%Y-%m-%d").date()
-        end_dt = datetime.strptime(end_date,"%Y-%m-%d").date()
-        return start_dt<=date<=end_dt
-    @staticmethod
-    def clock(date:datetime):
-        date1 = date-datetime.now()
-        seconds = date1.seconds+1
-        t = f"{seconds//3600:02d}:{(seconds%3600)//60:02d}:{(seconds)%60:02d}"
-        if date1.days==0:
-            return t
-        else:
-            return f"{date1.days} "+t
-
-
 class ShowEvents(Button):
     styles = """
         QPushButton {
@@ -454,9 +507,10 @@ class ShowEvents(Button):
             color:%s;
             border-radius:10px;
         }"""
-    def __init__(self, master, y, date:date, event:Events,show:bool=True):
-        super().__init__(master, [0,y,200,30],lambda:self.scream_choose(),event.text,style=self.styles%(color))
+    def __init__(self, master, y, date:date, event_name:str,show:bool=True):
+        super().__init__(master, [0,y,200,30],lambda:self.scream_choose(),event_name,style=self.styles%(color))
         self.adjustSize()
+        event = todo_data_set.event[event_name]
         self.events = event
         self.No_Change = True
         self.setVisible(show)
@@ -473,8 +527,7 @@ class ShowEvents(Button):
             label.adjustSize()
             label.show()
     def delete(self,a0: QMouseEvent|None=None):
-        del data.date[self.text()]
-        data.write("date")
+        todo_data_set.del_event(self.text())
         p = Page.cal.selectedDate()
         c = calendar.selectedDate()
         if c.addDays(1-c.dayOfWeek()) == p.addDays(1-p.dayOfWeek()):
@@ -507,17 +560,7 @@ class ShowEvents(Button):
 
         def button_choose():
             if t1.dateTime() < t2.dateTime():
-                if Type == "change" and e1.text() != self.text():
-                    del data.date[self.text()]
-                data.date[e1.text()] = {
-                    "start_date":t1.date().toString("yyyy-MM-dd"),
-                    "start_time":t1.time().toString("hh:mm:ss"),
-                    "end_date": t2.date().toString("yyyy-MM-dd"),
-                    "end_time":t2.time().toString("hh:mm:ss"),
-                    "rings": e4.toPlainText().split("\n"),
-                    "prompt":e3.toPlainText()
-                }
-                data.write("date")
+                todo_data_set.change_event(self.text(),e1.text(),t1.date().toString("yyyy-MM-dd"),t1.time().toString("hh:mm:ss"),t2.date().toString("yyyy-MM-dd"),t2.time().toString("hh:mm:ss"),e4.toPlainText().split("\n"),e3.toPlainText())
                 reload_page()
 
         def delete():
@@ -563,22 +606,12 @@ class ShowEvents(Button):
             ma.setWindowFlags(types.SubWindow)
             ma.setWindowTitle(Type if Type == "add" else f"{Type}:{event.text}")
             e1 = Entry(ma,f"font-family:Arial;font-size:17pt;background:transparent;color:{color2};",[0, 0, 300, 30],self.text(),)
-            t1 = QtWidgets.QDateTimeEdit(ma)
-            t1.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:{color};")
-            t1.setCalendarPopup(False)
-            t1.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
-            t1.setGeometry(0, 30, 240, 30)
-            t1.show()
+            t1 = DatetimeEdit(ma,30)
             t1c = CalendarWidget(None,[page_todo[0],page_todo[1]+90,260,200],calendar_selected, calendar_style1,False)
             t1c.setWindowFlag(types.FramelessWindowHint,True)
             Button(ma,[240,30,20,30],calendar_show,"d").show()
             Button(ma,[260,30,20,30],lambda:inter.time_show(t1),"t").show()
-            t2 = QtWidgets.QDateTimeEdit(ma)
-            t2.setStyleSheet(f"font-family:Arial;font-size:16pt;color:{color2};background:{color};")
-            t2.setCalendarPopup(False)
-            t2.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
-            t2.setGeometry(0, 60, 240, 30)
-            t2.show()
+            t2 = DatetimeEdit(ma,60)
             t2c = CalendarWidget(None,[page_todo[0],page_todo[1]+120,260,200],calendar_selected2, calendar_style1,False)
             t2c.setWindowFlag(types.FramelessWindowHint,True)
             Button(ma,[240,60,20,30],calendar_show2,"d").show()
@@ -619,6 +652,26 @@ class Slider(QtWidgets.QSlider):
         if func:
             self.valueChanged.connect(func)
 
+
+class VolumeSlider(Slider):
+    def __init__(self,master: QtWidgets.QWidget,geometry: list[int],type: Literal["music","clock"],page: Literal["set","addiction"]):
+        super().__init__(master,*geometry)
+        if type=="music":
+            text=f"Music Volume {Page.MusicVolume}%"
+            self.setting([0,100],Page.MusicVolume,lambda:self.set_m(page))
+        else:
+            text=f"Clock Volume {Page.ClockVolume}%"
+            self.setting([0,100],Page.ClockVolume,lambda:self.set_c(page))
+        self.label=Label(master,geometry,text,style=style_label+"13pt;")
+        self.label.setAttribute(Attribute.WA_TransparentForMouseEvents,True)
+        self.label.show()
+        self.show()
+    def set_m(self,page):
+        text=Music.set_music_slider(page)
+        self.label.setText(text)
+    def set_c(self,page):
+        text=Music.set_clock_slider(page)
+        self.label.setText(text)
 
 class WID(QtWidgets.QWidget):
     def __init__(self, parent, style="", *geometry):
@@ -761,7 +814,7 @@ class TopWin(WID):
         a0.accept()
 
 class MusicPlayer:
-    __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration","music_slider","clock_slider"]
+    __slots__ = ["media","audio","song","timer","playlist","slider","clear","states","play_num","button_dict","mode","play_already","show_duration", "volume_slider"]
     State = Literal["stop", "play", "pause"]
 
     def __init__(self):
@@ -777,31 +830,29 @@ class MusicPlayer:
         self.timer = QTimer()
         self.timer.timeout.connect(lambda: self.update_slide())
         self.button_dict: dict[Literal["1", "music"], Button] = {}
-        self.slider:list[Slider] = []
-        self.music_slider:dict[Literal["addiction","set"], Slider] = {}
-        self.clock_slider:dict[Literal["addiction","set"], Slider] = {}
-
-    def add_music_slider(self,key:Literal["addiction","set"],music_slider:Slider,clock_slider:Slider):
-        self.music_slider.update({key:music_slider})
-        self.clock_slider.update({key:clock_slider})
-    def music_slider_change(self,key:Literal["addiction","set"]):
-        volume = self.music_slider[key].value()
-        Page.MusicVolume = volume
-        if key == "addiction" and "set" in self.music_slider:
-            self.music_slider["set"].setValue(volume)
-        elif "addiction" in self.music_slider:
-            self.music_slider["addiction"].setValue(volume)
+        self.slider = []
+        self.volume_slider:dict[Literal["set","addiction"],list[Slider]] = {}
+    def add_volume_slider(self, type: Literal["set","addiction"], clock:Slider, music:Slider):
+        self.volume_slider.update({type:[clock,music]})
+    def set_music_slider(self,type: Literal["set","addiction"]):
+        a = self.volume_slider[type][1]
+        if len(self.volume_slider)>1:
+            b = self.volume_slider["set" if type=="addiction" else "addiction"][1]
+            b.setValue(a.value())
+        Page.MusicVolume = a.value()
         if V_play.get() == 1:
-            Music.audio.setVolume(volume / 100)
-    def clock_slider_change(self,key:Literal["addiction","set"]):
-        volume = self.clock_slider[key].value()
-        Page.ClockVolume = volume
-        if key == "addiction" and "set" in self.clock_slider:
-            self.clock_slider["set"].setValue(volume)
-        elif "addiction" in self.clock_slider:
-            self.clock_slider["addiction"].setValue(volume)
+            Music.audio.setVolume(a.value() / 100)
+        return  f"Music Volume {a.value()}%"
+    def set_clock_slider(self,type: Literal["set","addiction"]):
+        a = self.volume_slider[type][0]
+        if len(self.volume_slider)>1:
+            b = self.volume_slider["set" if type=="addiction" else "addiction"][0]
+            b.setValue(a.value())
+        Page.ClockVolume = a.value()
         if V_play.get() == -1:
-            Music.audio.setVolume(volume / 100)
+            Music.audio.setVolume(a.value() / 100)
+        return  f"Clock Volume {a.value()}%"
+        
 
     def add_slider(self, slider):
         if type(slider) == Slider:
@@ -941,7 +992,7 @@ class Json_Data(object):
         self.page:dict[str,list] = self.get("page")
         self.color:list[dict] = self.get("color")
         self.style:list[dict] = self.get("style")
-        self.exe:list[dict] = self.get("exe")
+        self.exe:list[dict[Literal["text","icon","command"],str]] = self.get("exe")
         self.date:dict[str,dict] = self.get("date")
         self.bookmark:dict[str,str] = self.get("bookmark")
     def write(self,key:data_type):
@@ -963,8 +1014,7 @@ class Interaction:
         self.time = 0
         self.count = False
         self.win_bool = False
-
-    def filename(self, types: Literal["*.mp3", "*.txt", "dir"],path: str):
+    def filename(self, types: str,path: str)->str:
         """::types (str): 類型"""
         if types == "dir":
             return FileDialog.getExistingDirectory(main_window, directory=path)
@@ -1057,7 +1107,7 @@ class Interaction:
         if not (self.time > 0 and self.count) and self.ctime < 0:
             self.timer.stop()
 
-    def time_show(self,obj:QtWidgets.QDateTimeEdit):
+    def time_show(self,obj:DatetimeEdit):
         
         def hour():
             if int(label_hour.text()[:-1])<12:
@@ -1118,118 +1168,7 @@ class Interaction:
 
 
 class Page_Organize:
-    __slots__ = ["page", "test_num", "test_number", "ClockVolume","MusicVolume","ClockRate","MusicRate","BackgroundBlur","mini_dict","todo_dict","cal"]
-
-    class But(QtWidgets.QPushButton):
-        refresh_func = None
-        def __init__(self, master, x,y,w,h, command=None,text="",image: str = None,num=0):
-            super().__init__(master)
-            b = Button(master,[x,y+h,w,15],lambda:self.win(text,command,image,str(w),str(h),num),text=text,style=f"color:{color2};background:transparent;text-align:left;")
-            b.adjustSize()
-            b.show()
-            self.b=b
-            self.setIcon(QIcon(image))
-            self.setIconSize(QtCore.QSize(w,h))
-            self.setGeometry(x,y,w,h)
-            self.setStyleSheet("background:transparent;")
-            if type(command)==str and command[:4] == "http":
-                self.clicked.connect(lambda:webbrowser.open(command))
-            elif type(command) == str:
-                self.clicked.connect(lambda:os.popen(command))
-            self.show()
-        def win(self,text:str,exec:str,icon:str,w:str,h:str,num:int):
-            def submit():
-                width = int(entry_x.text())
-                height = int(entry_y.text())
-                if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()] and 0 not in [width,height]:
-                    if len(list(filter(lambda x:text==x["text"],data.exe)))==1:
-                        data.exe.pop(num)
-                    data.exe.insert(entry_num.currentIndex(),{"text":entry_text.text(),"exec": entry_exec.text(),"icon": entry_icon.text(),"width":width,"height":height})
-                    data.write("exe")
-                    window.destroy(True,True)
-                    sip.delete(window)
-                    self.refresh_func()
-            def delete():
-                o=list(filter(lambda x:text==x["text"],data.exe))
-                if len(o)==1:
-                    data.exe.pop(data.exe.index(o[0]))
-                    data.write("exe")
-                    Page.addiction()
-                window.destroy(True,True)
-                sip.delete(window)
-                self.refresh_func()
-
-            def set_exec():
-                file = inter.filename("Exec(*.exe)",path)
-                entry_exec.setText(file[0])
-
-            def set_icon():
-                file = inter.filename("Icon(*.ico);;Png(*.png);;Jpeg(*.jpeg,*.jpg);;All(*.*)",path)
-                entry_icon.setText(file[0])
-
-            window = WID(None,"",300,300,200,150)
-            window.setWindowFlag(types.SubWindow,True)
-            window.setWindowTitle(text)
-            entry_text = Entry(window,"",[0,0,200,30],text)
-            entry_text.show()
-            entry_exec = Entry(window,"",[0,30,150,30],exec)
-            entry_exec.show()
-            Button(window,[150,30,50,30],set_exec,text="exe").show()
-            entry_icon = Entry(window,"",[0,60,150,30],icon)
-            entry_icon.show()
-            Button(window,[150,60,50,30],set_icon,text="icon").show()
-            entry_num = Combobox(window,"",map(str,range(len(data.exe))),[0,90,100,30])
-            entry_num.setCurrentIndex(num)
-            entry_num.show()
-            entry_x = Entry(window,"",[100,90,50,30],w)
-            entry_x.show()
-            entry_y = Entry(window,"",[150,90,50,30],h)
-            entry_y.show()
-            Button(window,[0,120,50,30],submit,text="submit").show()
-            Button(window,[50,120,50,30],delete,text="delete").show()
-            Button(window,[100,120,50,30],lambda:window.deleteLater(),text="cancel").show()
-            window.show()
-        @staticmethod
-        def add():
-            def submit():
-                width = int(entry_x.text())
-                height = int(entry_y.text())
-                if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()] and 0 not in [width,height]:
-                    data.exe.insert(entry_num.currentIndex(),{"text":entry_text.text(),"exec": entry_exec.text(),"icon": entry_icon.text(),"width":width,"height":height})
-                    data.write("exe")
-                    sip.delete(window)
-                    Page.destroy_page("addiction")
-                    Page_Organize.But.refresh_func()
-
-            def set_exec():
-                file = inter.filename("Exec(*.exe)",path)
-                entry_exec.setText(file[0])
-
-            def set_icon():
-                file = inter.filename("Icon(*.ico);;Png(*.png);;Jpeg(*.jpeg,*.jpg);;All(*.*)",path)
-                entry_icon.setText(file[0])
-
-            window = WID(None,"",300,300,200,150)
-            window.setWindowFlag(types.SubWindow,True)
-            window.setWindowTitle("add")
-            entry_text = Entry(window,"",[0,0,200,30])
-            entry_text.show()
-            entry_exec = Entry(window,"",[0,30,150,30])
-            entry_exec.show()
-            Button(window,[150,30,50,30],set_exec,text="exec").show()
-            entry_icon = Entry(window,"",[0,60,150,30])
-            entry_icon.show()
-            Button(window,[150,60,50,30],set_icon,text="icon").show()
-            entry_num = Combobox(window,"",map(str,range(len(data.exe)+1)),[0,90,100,30])
-            entry_num.show()
-            entry_x = Entry(window,"",[100,90,50,30],"0")
-            entry_x.show()
-            entry_y = Entry(window,"",[150,90,50,30],"0")
-            entry_y.show()
-            Button(window,[0,120,50,30],submit,text="submit").show()
-            Button(window,[50,120,50,30],lambda:window.deleteLater(),text="cancel").show()
-            window.show()
-
+    __slots__ = ["page", "test_num", "test_number", "ClockVolume","MusicVolume","ClockRate","MusicRate","BackgroundBlur","mini_dict","todo_dict","cal"]        
     def __init__(self):
         self.page: dict[page_type, TopWin] = {}
         self.test_num = -1
@@ -1240,7 +1179,7 @@ class Page_Organize:
         self.ClockRate = s["ClockRate"]
         self.MusicRate = s["MusicRate"]
         self.BackgroundBlur = s["BackgroundBlur"]
-        self.mini_dict:dict[Literal["time","date","combo","mode","timer","wid_exe","scr_exe"],Label|Button|Combo|WID]={}
+        self.mini_dict:dict[Literal["time","date","combo","mode","timer"],Label|Button|Combo|WID]={}
         self.cal = None
 
     def add_win(self,page: page_type,parent: QtWidgets.QMainWindow | None = None,color="transparent",x=0,y=0,) -> TopWin:
@@ -1250,9 +1189,10 @@ class Page_Organize:
         return self.page[page]
 
     def destroy_page(self, page: page_type):
-        if page in self.page:
-            if not sip.isdeleted(top_win := self.page.pop(page)):
-                sip.delete(top_win)
+        if page in self.page and not sip.isdeleted(top_win := self.page.pop(page)):
+            sip.delete(top_win)
+        if page in ["addiction","set"]:
+            del Music.volume_slider[page]
             if page == "addiction":
                 del_func_1000(f"Page_Organize addiction after:{id(self)}")
                 V_time.delete(self.mini_dict["time"])
@@ -1261,16 +1201,13 @@ class Page_Organize:
                 Music.slider.pop()
                 Music.show_duration.widget.pop()
                 self.mini_dict={}
-            if page in ["addiction","set"]:
-                Music.music_slider.pop(page)
-                Music.clock_slider.pop(page)
 
     def todo(self,select_date:date|None=None):
         def clicked():
             today = cal.selectedDate().toPyDate()
             today = today - timedelta(today.weekday())
-            todo = data.Todo
-            event = data.date
+            todo = todo_data_set.todo
+            event = todo_data_set.event
             list(map(lambda x:(sip.delete(x[0]),sip.delete(x[1])),self.todo_dict))
             self.todo_dict = []
             for dates in map(lambda x:today+timedelta(x),[0,1,2,3,4,5,6]):
@@ -1287,16 +1224,10 @@ class Page_Organize:
                 Label(wi,[10,5,100,20],dates.strftime("%m/%d  %a"),style=f"color:{color2};font-family:Arial;font-size:14pt;background:transparent;border:none;").show()
                 if dates.strftime("%Y/%m/%d  %a")==datetime.now().strftime("%Y/%m/%d  %a"):
                     Label(wi,[110,4,100,21],text="Today",style=f"color:#6ae680;font-family:Arial Rounded MT Bold;font-weight:bold;font-size:13pt;background:transparent;").show()
-                for event_key in sorted(filter(lambda x:Events.get_in_datetime(event[x]["start_date"],dates,event[x]["end_date"]),event)):
-                    event_ = Events(event_key,**event[event_key])
-                    label_event = ShowEvents(wi, position_y, dates, event_)
-                    label_event.show()
-                    position_y+=label_event.height()
-                for todo_list in sorted(filter(lambda x:todo[x]["date"]==dates.strftime("%Y-%m-%d"),todo),key=lambda x:todo[x]["time"]):
-                    gn = todo[todo_list]
-                    ch = Choose(wi, todo_list, TodoData(**gn),position_y,wid_todo=si)
-                    ch.show()
-                    position_y+=ch.height()
+                for event_key in sorted(filter(lambda x:Events.get_in_datetime(event[x].start_date,dates,event[x].end_date),event)):
+                    position_y+=ShowEvents(wi, position_y, dates, event_key).height()
+                for todo_list in sorted(filter(lambda x:todo[x].get_date()==dates.strftime("%Y-%m-%d") and not todo[x].Next,todo), key=lambda x:todo[x].time):
+                    position_y+=Choose(wi, todo_list, position_y,wid_todo=si).height()
                 wi.adjustSize()
                 wi.setMinimumSize(wi.width(),wi.height())
                 si.show()
@@ -1307,8 +1238,7 @@ class Page_Organize:
             cal.setSelectedDate(cal.selectedDate().toPyDate()+timedelta(7))
             clicked()
         def add_todo():
-            chose = Choose(win,"",TodoData(cal.selectedDate().toString("yyyy-MM-dd"),"00:00:00","",1),0,False)
-            chose.scream_choose("add")
+            Choose(win,"",0,False).scream_choose("add")
         def add_event():
             day = cal.selectedDate().toPyDate()
             date = day.strftime("%Y-%m-%d")
@@ -1316,7 +1246,6 @@ class Page_Organize:
             chose.scream_choose("add")
 
         win = self.add_win("todo", main_window, f"rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.15)", 680, 510)
-        ge = data.Todo
         self.todo_dict:list[list[WID]] = []
         style = f"""
             QScrollArea {{background: rgba({color_alpha[0]},{color_alpha[1]},{color_alpha[2]},0.56);border-radius:20px;border: 2px dotted rgba({color_alpha2[0]}, {color_alpha2[1]}, {color_alpha2[2]}, 0.89);}}
@@ -1338,13 +1267,9 @@ class Page_Organize:
         w = WID(win,"background:transparent;",0,0,1,1)
         t=WID_Todo(win,w,style,[340,200,340,100])
         position_y = 0
-        for fa in filter(lambda x:ge[x]["date"]=="Next",ge):
-            gn = ge[fa]
-            ch = Choose(w, fa, TodoData(**gn),position_y,wid_todo=t)
-            ch.show()
-            if len(gn["prompt"]) > 0:
-                Label(w,[ch.b1.x()+ch.b1.width(), position_y+5, 11, 19],text="*",style="color:#7bc3c4;font-family:細明體-ExtB;font-size:14pt;font-weight:bold;background:transparent;",).show()
-            position_y+=30
+        ge = todo_data_set.todo
+        for fa in filter(lambda x:ge[x].Next,ge):
+            position_y+=Choose(w, fa,position_y,wid_todo=t).height()
         w.adjustSize()
         w.setMinimumSize(w.width(),w.height())
         t.show()
@@ -1593,13 +1518,6 @@ class Page_Organize:
         def dark():
             V_state.set(dark_scale.value())
 
-        def set_m():
-            m_label.setText(f"Music Volume {m_scale.value()}%")
-            Music.music_slider_change("set")
-
-        def set_c():
-            c_label.setText(f"Clock Volume {c_scale.value()}%")
-            Music.clock_slider_change("set")
         def set_music_rate():
             rate = m_rate_scale.value()/100
             self.MusicRate = rate
@@ -1621,30 +1539,26 @@ class Page_Organize:
                 Music.media.setPlaybackRate(rate)
 
         def set_ClockMusic():
-            f = "\\" if "\\" in data.set["ClockMusic"] else "/"
-            if file := inter.filename("*.mp3",f.join(data.set["ClockMusic"].split(f)[:-1])):
+            if file := inter.filename("*.mp3",os.path.dirname(data.set["ClockMusic"])):
                 data.set["ClockMusic"] = file
                 data.write("set")
                 t0.setText(file)
 
         def set_DictTxt():
-            f = "\\" if "\\" in data.set["DictTxt"] else "/"
-            if file := inter.filename("*.txt",f.join(data.set["DictTxt"].split(f)[:-1])):
+            if file := inter.filename("*.txt",os.path.dirname(data.set["DictTxt"])):
                 data.set["DictTxt"] = file
                 data.write("set")
                 t1.setText(file)
 
         def set_MusicDir():
-            f = "\\" if "\\" in data.set["MusicDir"] else "/"
-            if file := inter.filename("*.mp3",f.join(data.set["MusicDir"].split(f)[:-1])):
+            if file := inter.filename("*.mp3",os.path.dirname(data.set["MusicDir"])):
                 Music.stop_list()
                 data.set["MusicDir"] = file
                 data.write("set")
                 t2.setText(file)
 
         def set_Background_file():
-            f = "\\" if "\\" in data.set["Background"] else "/"
-            file = inter.filename("JPEG (*.jpg *.jpeg *jpe *.jfif);;PNG (*png);;All (*.*)",f.join(data.set["Background"].split(f)[:-1]))
+            file = inter.filename("JPEG (*.jpg *.jpeg *jpe *.jfif);;PNG (*png);;All (*.*)",os.path.dirname(data.set["Background"]))
             if len(file) > 0:
                 data.set["Background"] = file
                 data.write("set")
@@ -1652,8 +1566,7 @@ class Page_Organize:
                 background_blur_show(file)
 
         def set_Background_dir():
-            f = "\\" if "\\" in data.set["Background"] else "/"
-            file = inter.filename("dir",f.join(data.set["Background"].split(f)[:-1]))
+            file = inter.filename("dir",os.path.dirname(data.set["Background"]))
             if len(file) > 0:
                 data.set["Background"] = file
                 data.write("set")
@@ -1687,13 +1600,9 @@ class Page_Organize:
         dark_label.show()
         dark_scale = Slider(wid, 140, 0, 60, 30)
         dark_scale.setting([0,1],int(data.set["dark"]),dark)
-        m_label = Label(wid,[0, 30, 140, 20],text=f"Music Volume {self.MusicVolume}%",style=style_label)
-        m_scale = Slider(wid, 140, 30, 160, 30)
-        m_scale.setting([0,100],self.MusicVolume,set_m)
-        c_label = Label(wid,[0, 60, 140, 20],text=f"Clock Volume {self.ClockVolume}%",style=style_label)
-        c_scale = Slider(wid, 140, 60, 160, 30)
-        c_scale.setting([0, 100],self.ClockVolume,set_c)
-        Music.add_music_slider("set",m_scale,c_scale)
+        m_scale = VolumeSlider(wid, [0, 30, 320, 30],"music","set")
+        c_scale = VolumeSlider(wid,[0, 60, 320, 30],"clock","set")
+        Music.add_volume_slider("set",c_scale,m_scale)
         m_rate_label = Label(wid,[0, 90, 140, 20],text=f"Music Rate {self.MusicRate}",style=style_label)
         m_rate_scale = Slider(wid, 140, 90, 160, 30)
         m_rate_scale.setting([50, 200],int(self.MusicRate*100),set_music_rate)
@@ -1715,7 +1624,7 @@ class Page_Organize:
             wid, [140, 360, 40, 30], set_Background_dir, text="dir", style=style_button
         ).show()
         t3 = Entry(wid,style_entry,[0,390,300,30],s["Background"])
-        list(map(lambda i:i.show(),[m_label, c_label,m_rate_label,c_rate_label, m_scale, c_scale,m_rate_scale,c_rate_scale,bg_blur_label,bg_blur_scale, t0, t1, t2, t3]))
+        list(map(lambda i:i.show(),[m_rate_label,c_rate_label, m_rate_scale,c_rate_scale,bg_blur_label,bg_blur_scale, t0, t1, t2, t3]))
         Button(win,[300, 0, 20, 15],lambda: self.destroy_page("set"),text="x").show()
         win.show()
 
@@ -1760,38 +1669,97 @@ class Page_Organize:
             else:
                 inter.start()
                 button_count.setIcon(QIcon(f"{path}\\icon\\暫停.png"))
-
-        def refresh(a0=None):
-            if "wid_exe" in self.mini_dict and "scr_exe" in self.mini_dict:
-                sip.delete(self.mini_dict["wid_exe"])
-                sip.delete(self.mini_dict["scr_exe"])
-            exec_list=data.exe
-            wid_exe = WID(win,"background:#00000000;",30,0,200,200)
-            width=0
-            height=0
-            num=0
-            for i in exec_list:
-                but=self.But(wid_exe,width,height,i["width"],i["height"],i["exec"],i["text"],i["icon"],num)
-                max_x = max(but.width(),but.b.width())
-                if max_x+width>=180:
-                    height+=but.b.height()+but.height()
-                    width=0
+        
+        def go_to_command():
+            if (not listbox_exe.currentItem() is None) and type(command:=data.exe[listbox_exe.currentRow()]["command"]) == str:
+                if command[:4]=="http":
+                    webbrowser.open(command)
                 else:
-                    width+=max_x-10
-                num+=1
-            scr_exe=WID_Todo(win,wid_exe,"background:#00000000;border:none;",[30,255+win_battery.height(),200,300])
-            scr_exe.show()
-            self.mini_dict.update(wid_exe=wid_exe,scr_exe=scr_exe)
+                    os.popen(command)
+        def edit():
+            def submit():
+                if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()]:
+                    if len(list(filter(lambda x:text==x["text"],data.exe)))==1:
+                        data.exe.pop(num)
+                    data.exe.insert(entry_num.currentIndex(),{"text":entry_text.text(),"command": entry_exec.text(),"icon": entry_icon.text()})
+                    data.write("exe")
+                    sip.delete(window)
+                    refresh()
+            def delete():
+                o=list(filter(lambda x:text==x["text"],data.exe))
+                if len(o)==1:
+                    data.exe.pop(data.exe.index(o[0]))
+                    data.write("exe")
+                sip.delete(window)
+                refresh()
 
-        def set_m():
-            m_label.setText(f"Music Volume {m_scale.value()}%")
-            Music.music_slider_change("addiction")
+            def set_exec():
+                if (file := inter.filename("Exec(*.exe);;All(*.*)",path)):
+                    entry_exec.setText(file)
 
-        def set_c():
-            c_label.setText(f"Clock Volume {c_scale.value()}%")
-            Music.clock_slider_change("addiction")
+            def set_icon():
+                if (file := inter.filename("Icon(*.ico);;Png(*.png);;Jpeg(*.jpeg,*.jpg);;All(*.*)",path)):
+                    entry_icon.setText(file)
 
-        win = self.add_win("addiction",x=230,y=100)
+            if (not listbox_exe.currentItem() is None):
+                num = listbox_exe.currentRow()
+                text = data.exe[num]["text"]
+                window = WID(None,"",300,300,200,190)
+                window.setWindowFlags(types.SubWindow)
+                window.setWindowTitle(text)
+                entry_text = Entry(window,"",[0,0,200,30],text)
+                entry_text.show()
+                entry_exec = Entry(window,"",[0,30,150,30],data.exe[listbox_exe.currentRow()]["command"])
+                entry_exec.show()
+                Button(window,[150,30,50,30],set_exec,text="cmd").show()
+                entry_icon = Entry(window,"",[0,60,150,30],data.exe[listbox_exe.currentRow()]["icon"])
+                entry_icon.show()
+                Button(window,[150,60,50,30],set_icon,text="icon").show()
+                entry_num = Combobox(window,"",map(str,range(len(data.exe))),[0,90,100,30])
+                entry_num.setCurrentIndex(num)
+                entry_num.show()
+                Button(window,[0,120,50,30],submit,text="submit").show()
+                Button(window,[50,120,50,30],delete,text="delete").show()
+                Button(window,[100,120,50,30],lambda:window.deleteLater(),text="cancel").show()
+                window.show()
+        def add():
+            def submit():
+                if "" not in [entry_text.text(),entry_exec.text(),entry_icon.text()]:
+                    data.exe.insert(entry_num.currentIndex(),{"text":entry_text.text(),"command": entry_exec.text(),"icon": entry_icon.text()})
+                    data.write("exe")
+                    sip.delete(window)
+                    refresh()
+
+            def set_exec():
+                if (file := inter.filename("Exec(*.exe)",path)):
+                    entry_exec.setText(file)
+
+            def set_icon():
+                if (file:=inter.filename("Icon(*.ico);;Png(*.png);;Jpeg(*.jpeg,*.jpg);;All(*.*)",path)):
+                    entry_icon.setText(file)
+
+            window = WID(None,"",300,300,200,120)
+            window.setWindowFlag(types.SubWindow,True)
+            window.setWindowTitle("add")
+            entry_text = Entry(window,"",[0,0,200,30])
+            entry_text.show()
+            entry_exec = Entry(window,"",[0,30,150,30])
+            entry_exec.show()
+            Button(window,[150,30,50,30],set_exec,text="cmd").show()
+            entry_icon = Entry(window,"",[0,60,150,30])
+            entry_icon.show()
+            Button(window,[150,60,50,30],set_icon,text="icon").show()
+            entry_num = Combobox(window,"",map(str,range(len(data.exe)+1)),[0,90,100,30])
+            entry_num.show()
+            Button(window,[100,90,50,30],submit,text="submit").show()
+            Button(window,[150,90,50,30],lambda:window.deleteLater(),text="cancel").show()
+            window.show()
+
+        def refresh():
+            listbox_exe.clear()
+            list(map(lambda i:listbox_exe.addItem(QtWidgets.QListWidgetItem(QIcon(i["icon"]),i["text"],listbox_exe,)),data.exe))
+
+        win = self.add_win("addiction",x=230,y=110)
         win.setAttribute(Attribute.WA_TranslucentBackground, True)
         win.mouseMoveEvent = lambda a0:a0.accept()
         win.mousePressEvent = click
@@ -1838,30 +1806,19 @@ class Page_Organize:
         QSlider {{
             background: transparent;border-radius: 10px;
         }}"""
-        m_scale = Slider(win, 40, 135, 180, 30)
-        m_label = Label(m_scale,[10, 0, 170, 30],text=f"Music Volume {self.MusicVolume}%",style=f"background:transparent;color:{color2};font-family:Arial;font-size:12pt;")
-        m_label.setAttribute(Attribute.WA_TransparentForMouseEvents,True)
+        m_scale = VolumeSlider(win, [30, 135, 200, 30],"music","addiction")
         m_scale.setStyleSheet(scale_style)
-        m_scale.setting([0,100],self.MusicVolume,set_m)
-        c_scale = Slider(win, 40, 165, 180, 30)
-        c_label = Label(c_scale,[10, 0, 170, 30],text=f"Clock Volume {self.ClockVolume}%",style=f"background:transparent;color:{color2};font-family:Arial;font-size:12pt;")
-        c_label.setAttribute(Attribute.WA_TransparentForMouseEvents,True)
-        c_scale.setting([0, 100],self.ClockVolume,set_c)
+        c_scale = VolumeSlider(win, [30, 165, 200, 30],"clock","addiction")
         c_scale.setStyleSheet(scale_style)
-        Music.add_music_slider("addiction" ,m_scale,c_scale)
-        m_label.show()
-        m_scale.show()
-        c_label.show()
-        c_scale.show()
-        Timer_Win = WID(win,"background:#00000000;",30,195,200,60)
+        Music.add_volume_slider("addiction",c_scale,m_scale)
+        Timer_Win = WID(win,"background:#00000000;",30,200,200,60)
         Timer_l1 = Label(Timer_Win, [0, 0, 200, 35], text=inter.show.get(), style=f"background-color:rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]}, 0.78);font-family:Arial;font-size:26pt;font-weight:bold;color:#d48649")
-        Timer_l1.setAlignment(align.AlignRight)
         inter.show.add(Timer_l1)
         button_count = Button(Timer_Win,[60, 35, 25, 25],count,image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;",)
         button_count.show()
         Button(Timer_Win,[95, 35, 25, 25],lambda: inter.set_win(),image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
         Timer_Win.show()
-        win_battery = WID(win,"background:#00000000;",30,255,200,120)
+        win_battery = WID(win,"background:#00000000;",30,260,200,120)
         co = ",".join(map(str, color_alpha))
         s = "color:%s;background:rgba("+co+",0.5);font-family:Arial;font-size:17pt;"
         progress_style = "QProgressBar {background: rgba("+co+",0.5);border: none;} QProgressBar::chunk {background: %s;}"
@@ -1889,10 +1846,16 @@ class Page_Organize:
         add_func_1000(f"Page_Organize addiction after:{id(self)}",after)
         win_battery.adjustSize()
         win_battery.show()
-        Button(win,[200,195+win_battery.height(),30,20],lambda:self.But.add(),text="add").show()
-        Page_Organize.But.refresh_func=refresh
-        refresh()
-        y=215+win_battery.height()+300
+        Button(win,[200,260+win_battery.height(),30,20],add,text="add").show()
+        Button(win,[160,260+win_battery.height(),40,20],edit,text="edit").show()
+        listbox_exe = QtWidgets.QListWidget(win)
+        listbox_exe.setGeometry(30,280+win_battery.height(),200,280)
+        listbox_exe.setStyleSheet("QListWidget {background:transparent"+listbox_style)
+        listbox_exe.itemDoubleClicked.connect(go_to_command)
+        listbox_exe.setSelectionMode(listbox_exe.SelectionMode.SingleSelection)
+        list(map(lambda i:listbox_exe.addItem(QtWidgets.QListWidgetItem(QIcon(i["icon"]),i["text"],listbox_exe,)),data.exe))
+        listbox_exe.show()
+        y=580+win_battery.height()
         win.setGeometry(m.width()-230,(m.height()-y)//2,230,y)
         win_all_label.setGeometry(30,0,200,y)
         win_all_label.show()
@@ -2061,7 +2024,6 @@ class TEXT(QtWidgets.QTextEdit):
         clicked_label.add(self,e.pos())
         self.parentWidget().raise_()
         e.accept()
-
     def setting(self, obj:Self):
         def on_roll():
             self.rol.setValue(self.sc.value())
@@ -2105,18 +2067,19 @@ class WriteIt(WST):
         if len(self.toPlainText()) > 1:
             self.save_file()
         self.WST.clear()
-        self.setPlainText(self.Open())
+        self.setPlainText(self.Open)
 
     def moved(self):
         if len(self.WST.selectedItems()) > 0:
             m = int(self.WST.selectedItems()[0].text())
-            var = len("\n".join(self.Open().split("\n")[:m])) * 1.89
+            var = len("\n".join(self.Open.split("\n")[:m])) * 1.89
             self.verticalScrollBar().setValue(int(var))
 
     def show_line(self):
         self.currentLine = self.textCursor().blockNumber()
         self.put.set(f"第{self.currentLine}行")
 
+    @property
     def Open(self, mode="r"):
         with open(data.set["DictTxt"], mode, encoding="UTF-8") as o:
             m = o.read()
@@ -2385,6 +2348,7 @@ def music_list_show():
 
 modes=["all_once","all_infinite","one_infinite"]
 data = Json_Data()
+todo_data_set = TodoDataSet()
 inter = Interaction()
 app = QtWidgets.QApplication(sys.argv)
 data_set = data.set
@@ -2563,8 +2527,8 @@ Music.add_slider(slider)
 listbox = QtWidgets.QListWidget(Song_Win)
 listbox.setGeometry(0, 105, 250, 200)
 listbox.setSelectionMode(listbox.SelectionMode.SingleSelection)
-listbox.setStyleSheet(f"""
-    QListWidget {{background:{background};color:#d66b70;font-family:Arial;font-size:15pt;font-weight:bold;}}
+listbox_style = f"""
+    ;color:#d66b70;font-family:Arial;font-size:15pt;font-weight:bold;}}
     QScrollBar:vertical {{{widget["ScrollBar"]["vertical"]}}}
     QScrollBar:vertical:hover {{{widget["ScrollBar"]["vertical"]}}}
     QScrollBar::handle:vertical {{{widget["ScrollBar"]["handle"]}}}
@@ -2579,7 +2543,8 @@ listbox.setStyleSheet(f"""
     QScrollBar::sub-page:horizontal {{width: 10px;background: transparent;}}
     QScrollBar::sub-line:horizontal {{height: 12px;width: 10px;background: transparent;subcontrol-position: left;}}
     QScrollBar::add-line:horizontal {{height: 12px;width: 10px;background: transparent;subcontrol-position: right;}}
-""")
+"""
+listbox.setStyleSheet("QListWidget {background:"+background+listbox_style)
 listbox.itemDoubleClicked.connect(double_clicked)
 com(combo)
 listbox.show()
