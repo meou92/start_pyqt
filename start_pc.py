@@ -329,7 +329,7 @@ class TodoDataSet(object):
     __slots__ = ["todo","event"]
     def __init__(self):
         self.todo:dict[str,TodoData] = {}
-        self.event:dict[str,Events] = []
+        self.event:dict[str,Events] = {}
         list(map(lambda x:self.todo.update({x:TodoData(**data.Todo[x])}),data.Todo))
         list(map(lambda x:self.event.update({x:Events(x,**data.date[x])}),data.date))
     def change_todo(self,todo_name:str,new_name:str,date: str, time: str, prompt: str="", type:Literal[0,1,2,3]=1):
@@ -653,26 +653,6 @@ class Slider(QtWidgets.QSlider):
             self.valueChanged.connect(func)
 
 
-class VolumeSlider(Slider):
-    def __init__(self,master: QtWidgets.QWidget,geometry: list[int],type: Literal["music","clock"],page: Literal["set","addiction"]):
-        super().__init__(master,*geometry)
-        if type=="music":
-            text=f"Music Volume {Page.MusicVolume}%"
-            self.setting([0,100],Page.MusicVolume,lambda:self.set_m(page))
-        else:
-            text=f"Clock Volume {Page.ClockVolume}%"
-            self.setting([0,100],Page.ClockVolume,lambda:self.set_c(page))
-        self.label=Label(master,geometry,text,style=style_label+"13pt;")
-        self.label.setAttribute(Attribute.WA_TransparentForMouseEvents,True)
-        self.label.show()
-        self.show()
-    def set_m(self,page):
-        text=Music.set_music_slider(page)
-        self.label.setText(text)
-    def set_c(self,page):
-        text=Music.set_clock_slider(page)
-        self.label.setText(text)
-
 class WID(QtWidgets.QWidget):
     def __init__(self, parent, style="", *geometry):
         super().__init__(parent)
@@ -749,6 +729,51 @@ class WID(QtWidgets.QWidget):
             self.left_time.set(Events.clock(self.datetime))
         else:
             self.clockDestroy()
+
+
+
+class VolumeSlider(Slider):
+    style0 = """
+        QSlider {
+            background: transparent;border-radius:40px;
+        }
+        QSlider::groove:vertical {
+            height: 80px;background: transparent;border-radius:40px;
+        }
+        QSlider::handle:vertical {
+            background: #ed7225;width: 80px;height: 5px;margin: 0px 0;
+        }
+        QSlider::add-page:vertical {
+            background:#9e4913;border-radius:40px;
+        }
+        QSlider QWidget {
+            border-radius:40px;background: transparent;
+        }
+        """
+    def __init__(self,master: QtWidgets.QWidget,x:int,y:int,width:int, type: Literal["music","clock","else"],page: Literal["set","addiction"]):
+        super().__init__(master,x,y,width,width)
+        self.setAttribute(Attribute.WA_TranslucentBackground,True)
+        self.setOrientation(Qt.Orientation.Vertical)
+        self.setStyleSheet(self.style0)
+        self.setInvertedAppearance(False)
+        text=""
+        if type=="music":
+            text=f"Music\n{Page.MusicVolume}%"
+            self.setting([0,100],Page.MusicVolume,lambda:self.set_m(page))
+        elif type=="clock":
+            text=f"Clock\n{Page.ClockVolume}%"
+            self.setting([0,100],Page.ClockVolume,lambda:self.set_c(page))
+        self.label=Label(master,[x+5,y+5,width-10,width-10],text,style=f"QLabel {{background:{color2};border-radius:35px;}}QLabel:hover {{background:rgba({color_alpha2[0]},{color_alpha2[1]},{color_alpha2[2]},0.7);}}")
+        self.label.setAlignment(align.AlignCenter)
+        self.label.setAttribute(Attribute.WA_TransparentForMouseEvents,True)
+        self.label.setVisible(True)
+        self.show()
+    def set_m(self,page):
+        text=Music.set_music_slider(page)
+        self.label.setText(text)
+    def set_c(self,page):
+        text=Music.set_clock_slider(page)
+        self.label.setText(text)
 
 
 class WID_Todo(QtWidgets.QScrollArea):
@@ -831,18 +856,18 @@ class MusicPlayer:
         self.timer.timeout.connect(lambda: self.update_slide())
         self.button_dict: dict[Literal["1", "music"], Button] = {}
         self.slider = []
-        self.volume_slider:dict[Literal["set","addiction"],list[Slider]] = {}
+        self.volume_slider:dict[Literal["set","addiction"],list[VolumeSlider]] = {}
     def add_volume_slider(self, type: Literal["set","addiction"], clock:Slider, music:Slider):
         self.volume_slider.update({type:[clock,music]})
     def set_music_slider(self,type: Literal["set","addiction"]):
         a = self.volume_slider[type][1]
+        Page.MusicVolume = a.value()
         if len(self.volume_slider)>1:
             b = self.volume_slider["set" if type=="addiction" else "addiction"][1]
             b.setValue(a.value())
-        Page.MusicVolume = a.value()
         if V_play.get() == 1:
-            Music.audio.setVolume(a.value() / 100)
-        return  f"Music Volume {a.value()}%"
+            Music.audio.setVolume(Page.MusicVolume / 100)
+        return  f"Music\n{Page.MusicVolume}%"
     def set_clock_slider(self,type: Literal["set","addiction"]):
         a = self.volume_slider[type][0]
         if len(self.volume_slider)>1:
@@ -850,8 +875,8 @@ class MusicPlayer:
             b.setValue(a.value())
         Page.ClockVolume = a.value()
         if V_play.get() == -1:
-            Music.audio.setVolume(a.value() / 100)
-        return  f"Clock Volume {a.value()}%"
+            Music.audio.setVolume(Page.ClockVolume / 100)
+        return  f"Clock\n{Page.ClockVolume}%"
         
 
     def add_slider(self, slider):
@@ -1521,7 +1546,7 @@ class Page_Organize:
         def set_music_rate():
             rate = m_rate_scale.value()/100
             self.MusicRate = rate
-            m_rate_label.setText(f"Music Rate: {rate}")
+            m_rate_scale.label.setText(f"Music\n{rate}")
             if V_play.get() == 1:
                 Music.timer.stop()
                 Music.timer.start(int(1000//rate))
@@ -1531,7 +1556,7 @@ class Page_Organize:
         def set_clock_rate():
             rate = c_rate_scale.value()/100
             self.ClockRate = rate
-            c_rate_label.setText(f"Clock Rate: {rate}")
+            c_rate_scale.label.setText(f"Clock\n{rate}")
             if V_play.get() == -1:
                 Music.timer.stop()
                 Music.timer.start(int(1000//rate))
@@ -1600,15 +1625,17 @@ class Page_Organize:
         dark_label.show()
         dark_scale = Slider(wid, 140, 0, 60, 30)
         dark_scale.setting([0,1],int(data.set["dark"]),dark)
-        m_scale = VolumeSlider(wid, [0, 30, 320, 30],"music","set")
-        c_scale = VolumeSlider(wid,[0, 60, 320, 30],"clock","set")
+        Label(wid,[0,30,60,30],text="Volume",style=f"background:transparent;color:{color2};")
+        Label(wid,[120,30,60,30],text="Rate",style=f"background:transparent;color:{color2};")
+        m_scale = VolumeSlider(wid, 0, 60, 80,"music","set")
+        c_scale = VolumeSlider(wid,80, 60, 80,"clock","set")
         Music.add_volume_slider("set",c_scale,m_scale)
-        m_rate_label = Label(wid,[0, 90, 140, 20],text=f"Music Rate {self.MusicRate}",style=style_label)
-        m_rate_scale = Slider(wid, 140, 90, 160, 30)
+        m_rate_scale = VolumeSlider(wid, 160, 60,80,"else","set")
         m_rate_scale.setting([50, 200],int(self.MusicRate*100),set_music_rate)
-        c_rate_label = Label(wid,[0, 120, 140, 20],text=f"Clock Rate {self.ClockRate}",style=style_label)
-        c_rate_scale = Slider(wid, 140, 120, 160, 30)
+        m_rate_scale.label.setText(f"Music\n{self.MusicRate}")
+        c_rate_scale = VolumeSlider(wid, 240, 60, 80,"else","set")
         c_rate_scale.setting([50, 200],int(self.ClockRate*100),set_clock_rate)
+        c_rate_scale.label.setText(f"Clock\n{self.ClockRate}")
         bg_blur_label = Label(wid,[0, 150, 140, 20],text=f"BG Blur {self.BackgroundBlur}",style=style_label)
         bg_blur_scale = Slider(wid, 140, 150, 160, 30)
         bg_blur_scale.setting([0,1000],int(self.BackgroundBlur*10),set_background_blur)
@@ -1624,7 +1651,7 @@ class Page_Organize:
             wid, [140, 360, 40, 30], set_Background_dir, text="dir", style=style_button
         ).show()
         t3 = Entry(wid,style_entry,[0,390,300,30],s["Background"])
-        list(map(lambda i:i.show(),[m_rate_label,c_rate_label, m_rate_scale,c_rate_scale,bg_blur_label,bg_blur_scale, t0, t1, t2, t3]))
+        list(map(lambda i:i.show(),[m_rate_scale,c_rate_scale,bg_blur_label,bg_blur_scale, t0, t1, t2, t3]))
         Button(win,[300, 0, 20, 15],lambda: self.destroy_page("set"),text="x").show()
         win.show()
 
@@ -1793,32 +1820,17 @@ class Page_Organize:
         mode = Button(win,[160, 110, 25, 25],image=QIcon(f"{path}home\\{Music.mode}.png"),style="background:transparent;",)
         mode.LeftCommand=lambda:set_play_mode(mode)
         mode.show()
-        scale_style = f"""
-        QSlider::groove:horizontal {{
-            height: 20px;border-radius: 10px;background: {color};
-        }}
-        QSlider::handle:horizontal{{
-            background: {colors['normal-bg']};width: 20px;height: 20px;margin: 0px 0;border-radius: 10px;
-        }}
-        QSlider::sub-page:horizontal{{
-            border-radius: 10px;background:#d48649;
-        }}
-        QSlider {{
-            background: transparent;border-radius: 10px;
-        }}"""
-        m_scale = VolumeSlider(win, [30, 135, 200, 30],"music","addiction")
-        m_scale.setStyleSheet(scale_style)
-        c_scale = VolumeSlider(win, [30, 165, 200, 30],"clock","addiction")
-        c_scale.setStyleSheet(scale_style)
+        m_scale = VolumeSlider(win, 30, 135, 80,"music","addiction")
+        c_scale = VolumeSlider(win, 120, 135, 80,"clock","addiction")
         Music.add_volume_slider("addiction",c_scale,m_scale)
-        Timer_Win = WID(win,"background:#00000000;",30,200,200,60)
+        Timer_Win = WID(win,"background:#00000000;",30,215,200,60)
         Timer_l1 = Label(Timer_Win, [0, 0, 200, 35], text=inter.show.get(), style=f"background-color:rgba({color_alpha[0]}, {color_alpha[1]}, {color_alpha[2]}, 0.78);font-family:Arial;font-size:26pt;font-weight:bold;color:#d48649")
         inter.show.add(Timer_l1)
         button_count = Button(Timer_Win,[60, 35, 25, 25],count,image=QIcon(f"{path}icon\\播放.png"),style="background:transparent;",)
         button_count.show()
         Button(Timer_Win,[95, 35, 25, 25],lambda: inter.set_win(),image=QIcon(f"{path}icon\\編輯.png"),style="background:transparent;",).show()
         Timer_Win.show()
-        win_battery = WID(win,"background:#00000000;",30,260,200,120)
+        win_battery = WID(win,"background:#00000000;",30,275,200,120)
         co = ",".join(map(str, color_alpha))
         s = "color:%s;background:rgba("+co+",0.5);font-family:Arial;font-size:17pt;"
         progress_style = "QProgressBar {background: rgba("+co+",0.5);border: none;} QProgressBar::chunk {background: %s;}"
@@ -1846,16 +1858,16 @@ class Page_Organize:
         add_func_1000(f"Page_Organize addiction after:{id(self)}",after)
         win_battery.adjustSize()
         win_battery.show()
-        Button(win,[200,260+win_battery.height(),30,20],add,text="add").show()
-        Button(win,[160,260+win_battery.height(),40,20],edit,text="edit").show()
+        Button(win,[200,275+win_battery.height(),30,20],add,text="add").show()
+        Button(win,[160,275+win_battery.height(),40,20],edit,text="edit").show()
         listbox_exe = QtWidgets.QListWidget(win)
-        listbox_exe.setGeometry(30,280+win_battery.height(),200,280)
+        listbox_exe.setGeometry(30,295+win_battery.height(),200,280)
         listbox_exe.setStyleSheet("QListWidget {background:transparent"+listbox_style)
         listbox_exe.itemDoubleClicked.connect(go_to_command)
         listbox_exe.setSelectionMode(listbox_exe.SelectionMode.SingleSelection)
         list(map(lambda i:listbox_exe.addItem(QtWidgets.QListWidgetItem(QIcon(i["icon"]),i["text"],listbox_exe,)),data.exe))
         listbox_exe.show()
-        y=580+win_battery.height()
+        y=575+win_battery.height()
         win.setGeometry(m.width()-230,(m.height()-y)//2,230,y)
         win_all_label.setGeometry(30,0,200,y)
         win_all_label.show()
@@ -2125,7 +2137,7 @@ def show_todo():
     dates = data.date
     event = sorted(filter(lambda x:Events.get_in_datetime(dates[x]["start_date"],Date.toPyDate(),dates[x]["end_date"]),dates),key=event_sorted)
     if len(event)> 0:
-        text = "\n".join(event)
+        text = "\n".join(event)+"\n"
     if len(todo) > 0:
         text += "\n".join(map(lambda x:f'{todo_[x]["time"]} {x}',sorted(todo,key=lambda x:todo_[x]["time"])))
     elif len(event)==0:
